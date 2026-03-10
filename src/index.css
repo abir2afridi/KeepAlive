@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-primary: var(--primary);
+  /* Aliases for legacy classes */
+  --color-background-dark: var(--bg-base);
+  --color-background-light: var(--bg-base);
+  --color-panel: var(--bg-panel);
+  --color-line: var(--border-subtle);
+  --color-ink: var(--text-main);
+
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Redefine SLATE palette dynamically for perfect light/dark switching */
+  --color-slate-50: var(--slate-50);
+  --color-slate-100: var(--slate-100);
+  --color-slate-200: var(--slate-200);
+  --color-slate-300: var(--slate-300);
+  --color-slate-400: var(--slate-400);
+  --color-slate-500: var(--slate-500);
+  --color-slate-600: var(--slate-600);
+  --color-slate-700: var(--slate-700);
+  --color-slate-800: var(--slate-800);
+  --color-slate-900: var(--slate-900);
+  --color-slate-950: var(--slate-950);
+}
+
+:root {
+  /* LIGHT Theme */
+  --primary: #0284c7; 
+  --bg-base: #f8fafc;
+  --bg-panel: #ffffff;
+  --border-subtle: #e2e8f0;
+  --text-main: #0f172a;
+
+  --slate-50: #020617;
+  --slate-100: #0f172a;
+  --slate-200: #1e293b;
+  --slate-300: #334155;
+  --slate-400: #475569;
+  --slate-500: #64748b;
+  --slate-600: #94a3b8;
+  --slate-700: #cbd5e1;
+  --slate-800: #e2e8f0;
+  --slate-900: #f1f5f9;
+  --slate-950: #f8fafc;
+}
+
+.dark {
+  /* DARK Theme */
+  --primary: #0df2f2;
+  --bg-base: #0a0a0a;
+  --bg-panel: #111111;
+  --border-subtle: #262626;
+  --text-main: #f8fafc;
+
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --slate-950: #020617;
+}
+
+body {
+  @apply bg-background-dark text-slate-100 font-sans antialiased selection:bg-primary/30 selection:text-primary transition-colors duration-500;
+}
+
+/* Custom scrollbar for a technical feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-800 rounded-full transition-colors;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-700;
+}
