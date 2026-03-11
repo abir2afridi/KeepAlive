@@ -13,3 +13,6 @@ ts_errors.txt
 fix_*.js
 fix_*.cjs
 !index.html
+
+.vercel
+.env*.local
