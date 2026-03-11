@@ -2,6 +2,8 @@ import { Router } from 'express';
 import Stripe from 'stripe';
 import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
+import { encrypt } from './crypto.js';
+import crypto from 'crypto';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock', {
   apiVersion: '2025-01-27.acacia' as any
@@ -12,7 +14,9 @@ const router = Router();
 // Public route for status page
 router.get('/public-status/:slug', (req, res) => {
   const { slug } = req.params;
-  const user = db.prepare('SELECT id FROM users WHERE status_slug = ?').get(slug) as any;
+  
+  // Use COLLATE NOCASE for flexible URL matching
+  const user = db.prepare('SELECT id, email, status_slug FROM users WHERE status_slug = ? COLLATE NOCASE').get(slug) as any;
   
   if (!user) {
     return res.status(404).json({ error: 'Status page not found' });
@@ -20,8 +24,11 @@ router.get('/public-status/:slug', (req, res) => {
 
   const monitors = db.prepare(`
     SELECT m.id, m.name, m.url, m.type,
-      (SELECT is_up FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as current_is_up,
-      (SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id AND p.is_up = 1) * 100.0 / NULLIF((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id), 0) as uptime_percent
+      COALESCE((SELECT is_up FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), -1) as current_is_up,
+      COALESCE((SELECT created_at FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), '') as last_checked,
+      COALESCE((SELECT AVG(response_time) FROM (SELECT response_time FROM pings p2 WHERE p2.monitor_id = m.id ORDER BY created_at DESC LIMIT 50)), 0) as avg_response_time,
+      COALESCE((SELECT error_message FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), '') as last_error_message,
+      COALESCE((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id AND p.is_up = 1) * 100.0 / NULLIF((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id), 0), 0) as uptime_percent
     FROM monitors m
     WHERE m.user_id = ?
     ORDER BY m.created_at DESC
@@ -29,16 +36,58 @@ router.get('/public-status/:slug', (req, res) => {
 
   const monitorsWithPings = monitors.map((m: any) => {
     const pings = db.prepare(`
-      SELECT response_time, is_up, created_at 
+      SELECT response_time, is_up, error_message, created_at 
       FROM pings 
       WHERE monitor_id = ? 
       ORDER BY created_at DESC 
-      LIMIT 10
+      LIMIT 50
     `).all(m.id).reverse();
-    return { ...m, recent_pings: pings };
+
+    const incidents = db.prepare(`
+      SELECT response_time, is_up, error_message, created_at 
+      FROM pings 
+      WHERE monitor_id = ? AND is_up = 0
+      ORDER BY created_at DESC 
+      LIMIT 5
+    `).all(m.id);
+
+    return { ...m, recent_pings: pings, recent_incidents: incidents };
   });
 
-  res.json({ monitors: monitorsWithPings });
+
+  res.json({ 
+    user: { email: user.email, slug: user.status_slug },
+    monitors: monitorsWithPings 
+  });
+});
+
+router.get('/public-status/:slug/monitors/:monitorId', (req, res) => {
+  const { slug, monitorId } = req.params;
+  
+  const user = db.prepare('SELECT id FROM users WHERE status_slug = ? COLLATE NOCASE').get(slug) as any;
+  if (!user) return res.status(404).json({ error: 'Status page not found' });
+
+  const monitor = db.prepare(`
+    SELECT m.id, m.name, m.url, m.type, m.interval, m.method,
+      COALESCE((SELECT is_up FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), -1) as current_is_up,
+      COALESCE((SELECT response_time FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), 0) as last_response_time,
+      COALESCE((SELECT error_message FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), '') as last_error_message,
+      COALESCE((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id AND p.is_up = 1) * 100.0 / NULLIF((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id), 0), 0) as uptime_percent
+    FROM monitors m
+    WHERE m.id = ? AND m.user_id = ?
+  `).get(monitorId, user.id) as any;
+
+  if (!monitor) return res.status(404).json({ error: 'Monitor not found' });
+
+  const pings = db.prepare(`
+    SELECT response_time, is_up, error_message, created_at 
+    FROM pings 
+    WHERE monitor_id = ? 
+    ORDER BY created_at DESC 
+    LIMIT 100
+  `).all(monitorId).reverse();
+
+  res.json({ ...monitor, recent_pings: pings });
 });
 
 router.use(requireAuth);
@@ -84,6 +133,33 @@ router.post('/checkout-session', async (req: AuthRequest, res) => {
   }
 });
 
+router.post('/webhook', async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    if (process.env.STRIPE_WEBHOOK_SECRET) {
+      event = stripe.webhooks.constructEvent(req.body, sig as string, process.env.STRIPE_WEBHOOK_SECRET);
+    } else {
+      // If no secret, we assume it's mock or dev (NOT SECURE FOR PRODUCTION)
+      event = JSON.parse(req.body.toString());
+    }
+  } catch (err: any) {
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const userId = session.client_reference_id;
+    if (userId) {
+      db.prepare("UPDATE users SET plan = 'pro' WHERE id = ?").run(userId);
+      console.log(`[STRIPE] User ${userId} upgraded to PRO via webhook.`);
+    }
+  }
+
+  res.send();
+});
+
 router.post('/verify-checkout', (req: AuthRequest, res) => {
   const userId = req.user?.id;
   // In production, sync status with Stripe logic/webhooks. Mocking verification here:
@@ -97,6 +173,7 @@ router.get('/monitors', (req: AuthRequest, res) => {
     SELECT m.*, 
       (SELECT is_up FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as current_is_up,
       (SELECT response_time FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as last_response_time,
+      (SELECT error_message FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as last_error_message,
       (SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id AND p.is_up = 1) * 100.0 / NULLIF((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id), 0) as uptime_percent
     FROM monitors m
     WHERE m.user_id = ?
@@ -106,7 +183,7 @@ router.get('/monitors', (req: AuthRequest, res) => {
   // Get last 10 pings for sparkline
   const monitorsWithPings = monitors.map((m: any) => {
     const pings = db.prepare(`
-      SELECT response_time, is_up, created_at 
+      SELECT response_time, is_up, error_message, created_at 
       FROM pings 
       WHERE monitor_id = ? 
       ORDER BY created_at DESC 
@@ -116,6 +193,36 @@ router.get('/monitors', (req: AuthRequest, res) => {
   });
 
   res.json(monitorsWithPings);
+});
+
+router.get('/monitors/:id', (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const userId = req.user?.id;
+
+  const monitor = db.prepare(`
+    SELECT m.*, 
+      (SELECT is_up FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as current_is_up,
+      (SELECT response_time FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as last_response_time,
+      (SELECT error_message FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as last_error_message,
+      (SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id AND p.is_up = 1) * 100.0 / NULLIF((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id), 0) as uptime_percent
+    FROM monitors m
+    WHERE m.id = ? AND m.user_id = ?
+  `).get(id, userId) as any;
+
+  if (!monitor) {
+    return res.status(404).json({ error: 'Monitor not found' });
+  }
+
+  // Get last 50 pings for detailed chart
+  const pings = db.prepare(`
+    SELECT response_time, is_up, error_message, created_at 
+    FROM pings 
+    WHERE monitor_id = ? 
+    ORDER BY created_at DESC 
+    LIMIT 50
+  `).all(id).reverse();
+
+  res.json({ ...monitor, recent_pings: pings });
 });
 
 router.post('/monitors', (req: AuthRequest, res) => {
@@ -142,10 +249,13 @@ router.post('/monitors', (req: AuthRequest, res) => {
       insertAlert.run(crypto.randomUUID(), id, 'email', req.user?.email || '');
     }
     if (alerts.discord && alerts.discord_url) {
-      insertAlert.run(crypto.randomUUID(), id, 'discord', alerts.discord_url);
+      insertAlert.run(crypto.randomUUID(), id, 'discord', encrypt(alerts.discord_url));
     }
     if (alerts.slack && alerts.slack_url) {
-      insertAlert.run(crypto.randomUUID(), id, 'slack', alerts.slack_url);
+      insertAlert.run(crypto.randomUUID(), id, 'slack', encrypt(alerts.slack_url));
+    }
+    if (alerts.telegram && alerts.telegram_url) {
+      insertAlert.run(crypto.randomUUID(), id, 'telegram', encrypt(alerts.telegram_url));
     }
   }
 
@@ -177,8 +287,9 @@ router.put('/monitors/:id', (req: AuthRequest, res) => {
     db.prepare('DELETE FROM alert_channels WHERE monitor_id = ?').run(id);
     const insertAlert = db.prepare('INSERT INTO alert_channels (id, monitor_id, type, destination) VALUES (?, ?, ?, ?)');
     if (alerts.email) insertAlert.run(crypto.randomUUID(), id, 'email', req.user?.email || '');
-    if (alerts.discord && alerts.discord_url) insertAlert.run(crypto.randomUUID(), id, 'discord', alerts.discord_url);
-    if (alerts.slack && alerts.slack_url) insertAlert.run(crypto.randomUUID(), id, 'slack', alerts.slack_url);
+    if (alerts.discord && alerts.discord_url) insertAlert.run(crypto.randomUUID(), id, 'discord', encrypt(alerts.discord_url));
+    if (alerts.slack && alerts.slack_url) insertAlert.run(crypto.randomUUID(), id, 'slack', encrypt(alerts.slack_url));
+    if (alerts.telegram && alerts.telegram_url) insertAlert.run(crypto.randomUUID(), id, 'telegram', encrypt(alerts.telegram_url));
   }
   
   if (result.changes === 0) {

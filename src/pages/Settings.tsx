@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { CreditCard, Zap, CheckCircle2, Activity } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { 
+  Crown, User, Globe, Lock,
+  RefreshCw, Fingerprint, Terminal, Settings as SettingsIcon,
+  HardDrive, Box, ChevronRight, ShieldCheck
+} from 'lucide-react';
+import { cn } from '../components/Layout';
 
 export default function Settings() {
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || '{}'));
@@ -14,7 +19,6 @@ export default function Settings() {
 
   useEffect(() => {
     if (searchParams.get('success')) {
-      // Re-verify checkout with backend
       const token = localStorage.getItem('token');
       fetch('/api/verify-checkout', {
         method: 'POST',
@@ -26,9 +30,9 @@ export default function Settings() {
           const updatedUser = { ...user, plan: 'pro' };
           localStorage.setItem('user', JSON.stringify(updatedUser));
           setUser(updatedUser);
-          setMsg('Subscription upgraded to Pro successfully!');
+          setMsg('Successfully upgraded to Pro Tier.');
         }
-        setSearchParams({}); // Clear query params
+        setSearchParams({});
       });
     }
   }, [searchParams, setSearchParams, user]);
@@ -49,7 +53,7 @@ export default function Settings() {
         setMsg('Failed to initiate checkout.');
       }
     } catch (err) {
-      setMsg('Error starting checkout process.');
+      setMsg('Error during checkout initialization.');
     } finally {
       setLoading(false);
     }
@@ -70,13 +74,13 @@ export default function Settings() {
         body: JSON.stringify({ status_slug: statusSlug, password: password || undefined })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update profile');
+      if (!res.ok) throw new Error(data.error || 'Profile update failed');
       
       const updatedUser = { ...user, status_slug: statusSlug };
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
       setPassword('');
-      setMsg('Operator profile updated successfully.');
+      setMsg('Profile parameters updated successfully.');
     } catch (err: any) {
       setMsg(err.message);
     } finally {
@@ -85,161 +89,231 @@ export default function Settings() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto pb-12 font-sans">
-      <div className="mb-8 border-b border-line/40 pb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">System Configuration</h1>
-        <p className="text-sm font-medium text-slate-500 mt-2">Manage your account parameters and billing preferences.</p>
+    <div className="max-w-6xl mx-auto space-y-12">
+      
+      <div className="flex items-center justify-between pb-4 border-b border-line/40">
+        <h2 className="text-xs font-bold text-ink/60 uppercase tracking-[0.3em] italic">System Preferences</h2>
+        <div className="size-8 bg-panel rounded-xl flex items-center justify-center border border-line/40 text-primary shadow-sm hover:rotate-90 transition-all duration-500">
+          <SettingsIcon className="size-4" />
+        </div>
       </div>
 
       {msg && (
-        <div className="mb-6 p-4 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-mono flex items-center gap-3">
-          <CheckCircle2 className="size-5" />
-          {msg}
+        <div className="p-4 bg-slate-900 text-white rounded-2xl flex items-center justify-between shadow-lg">
+           <div className="flex items-center gap-3">
+              <Terminal className="size-4 text-primary" />
+              <p className="text-[10px] font-bold uppercase tracking-widest">{msg}</p>
+           </div>
+           <button onClick={() => setMsg('')} className="opacity-50 hover:opacity-100 transition-opacity p-2">
+              <Lock className="size-3.5" />
+           </button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-8">
-        {/* Profile Section */}
-        <section className="bg-panel/70 backdrop-blur-2xl rounded-3xl border border-line/50 p-10 shadow-sm relative overflow-hidden group hover:shadow-primary/5 hover:border-line transition-all duration-300">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-primary/40 group-hover:bg-primary transition-colors duration-300"></div>
-          <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-primary"></span>
-            Operator Profile
-          </h3>
-          <div className="flex items-center gap-6">
-            <div className="size-20 rounded-xl bg-background-dark/50 flex items-center justify-center overflow-hidden border border-line shadow-sm">
-              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email || 'Alex'}&backgroundColor=0f172a`} alt="Avatar" className="w-full h-full object-cover grayscale opacity-80 hover:grayscale-0 hover:opacity-100 transition-all duration-500" />
-            </div>
-            <div>
-              <p className="text-xl font-semibold text-slate-800 dark:text-slate-100">{user.email || 'sysadmin@local'}</p>
-              <div className="flex items-center gap-2 mt-3">
-                <span className="px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-bold text-primary uppercase tracking-widest shadow-sm">
-                  {user.plan || 'Free'} Tier
-                </span>
-                <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-line text-[10px] font-bold text-slate-500 uppercase tracking-widest shadow-sm">
-                  Active
-                </span>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
+        
+        {/* Navigation Sidebar */}
+        <aside className="lg:col-span-1 space-y-6">
+           <nav className="flex flex-col gap-1">
+              {[
+                { label: 'Tactical Identity', icon: User, active: true },
+                { label: 'Subscription', icon: Crown },
+                { label: 'Security Vault', icon: Lock }
+              ].map((item, i) => (
+                <button key={i} className={cn(
+                  "flex items-center gap-3 px-6 py-3.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all",
+                  item.active 
+                    ? "bg-primary text-white italic" 
+                    : "text-ink/60 hover:text-ink hover:bg-panel/80 transition-all"
+                )}>
+                  <item.icon className="size-3.5" />
+                  {item.label}
+                </button>
+              ))}
+           </nav>
+
+           <div className="p-6 bg-panel/50 border border-line/40 rounded-3xl space-y-3">
+              <HardDrive className="size-5 text-primary" />
+              <div className="space-y-1">
+                 <h4 className="text-[10px] font-bold text-ink uppercase tracking-widest">Active Link</h4>
+                 <p className="text-[9px] text-ink/60 font-medium italic">System performance optimized for high-frequency polling.</p>
               </div>
-            </div>
-          </div>
+           </div>
+        </aside>
 
-          <form onSubmit={handleSaveProfile} className="mt-8 pt-8 border-t border-line/50 space-y-5">
-            <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4">Configuration parameters</h4>
-            
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest cursor-pointer">Public Status Slug</label>
-              <div className="flex rounded-2xl shadow-sm hover:border-line transition-colors">
-                <span className="inline-flex items-center px-4 rounded-l-2xl border border-r-0 border-line/60 bg-slate-800/5 dark:bg-background-dark/50 text-slate-500 text-sm font-mono">
-                  keepalive.com/status/
-                </span>
-                <input
-                  type="text"
-                  value={statusSlug}
-                  onChange={(e) => setStatusSlug(e.target.value)}
-                  className="flex-1 block w-full min-w-0 rounded-none rounded-r-2xl border border-line/60 bg-slate-800/5 dark:bg-background-dark/50 px-4 py-3 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:border-primary/50 focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm"
-                  placeholder="your-company-name"
-                />
+        {/* Content Area */}
+        <main className="lg:col-span-3 space-y-16">
+           
+           {/* Profile Section */}
+           <section className="space-y-8">
+              <div className="flex items-center justify-between border-b border-line/20 pb-4">
+                 <div>
+                    <h2 className="text-xl font-bold text-ink uppercase tracking-tight italic">Identity Profile</h2>
+                    <p className="text-[8px] font-bold text-ink/60 uppercase tracking-widest mt-0.5">Personnel Registry</p>
+                 </div>
+                 <Fingerprint className="size-6 text-primary opacity-20" />
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest cursor-pointer">Change Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="block w-full rounded-2xl border border-line/60 bg-slate-800/5 dark:bg-background-dark/50 px-4 py-3 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:border-primary/50 focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:border-line"
-                placeholder="Leave blank to keep unchanged"
-              />
-            </div>
-            
-            <button 
-              type="submit"
-              disabled={saveLoading}
-              className="mt-8 w-full flex justify-center py-3.5 px-4 rounded-2xl bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary font-bold text-sm tracking-widest uppercase shadow-[0_0_15px_rgba(var(--primary),0.1)] hover:shadow-[0_4px_20px_rgba(var(--primary),0.2)] transition-all active:scale-95 disabled:opacity-50"
-            >
-              {saveLoading ? 'Applying Changes...' : 'Save Profile Details'}
-            </button>
-          </form>
-        </section>
+              <form onSubmit={handleSaveProfile} className="space-y-8">
+                 <div className="flex items-center gap-6">
+                    <div className="size-16 bg-panel rounded-2xl border border-line/40 flex items-center justify-center group overflow-hidden relative shadow-sm">
+                       <User className="size-6 text-ink/70 group-hover:scale-110 transition-transform" />
+                    </div>
+                    <div>
+                       <h4 className="text-lg font-bold text-ink uppercase tracking-tight italic">{user.name || 'Anonymous User'}</h4>
+                       <p className="text-[10px] font-mono text-ink/60 uppercase tracking-widest">{user.email}</p>
+                    </div>
+                 </div>
 
-        {/* Subscription Plan */}
-        <section className="bg-panel/70 backdrop-blur-2xl rounded-3xl border border-line/50 p-10 shadow-sm relative overflow-hidden group hover:shadow-emerald-500/5 hover:border-line transition-all duration-300">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500/40 group-hover:bg-emerald-500 transition-colors duration-300"></div>
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-              <CreditCard className="size-4 text-emerald-500" />
-              Resource Allocation & Billing
-            </h3>
-            <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-line text-[10px] font-bold text-slate-500 uppercase tracking-widest shadow-sm">
-              Current Tier: <span className="text-slate-800 dark:text-slate-200">{user.plan || 'Free'}</span>
-            </span>
-          </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                       <label className="text-[9px] font-bold text-ink/60 uppercase tracking-widest ml-1">Status Slug</label>
+                       <div className="relative group">
+                          <input 
+                            type="text" 
+                            value={statusSlug}
+                            onChange={(e) => setStatusSlug(e.target.value)}
+                            className="w-full bg-panel border border-line/40 rounded-xl px-5 py-3 text-[11px] font-bold text-ink focus:outline-none focus:border-primary/50 transition-all font-mono uppercase tracking-widest p-4 whitespace-nowrap overflow-hidden transition-all duration-300"
+                            placeholder="status-slug"
+                          />
+                          <Terminal className="absolute right-4 top-1/2 -translate-y-1/2 size-3.5 text-ink/20 group-focus-within:text-primary transition-colors" />
+                       </div>
+                    </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Free Plan */}
-            <div className={`p-8 rounded-3xl border transition-all duration-300 ${user.plan === 'free' || !user.plan ? 'border-primary/50 bg-primary/5 shadow-sm' : 'border-line/50 bg-slate-50 dark:bg-background-dark/30 hover:border-line'}`}>
-              <h4 className="text-sm font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Hobby Node</h4>
-              <p className="text-4xl font-bold text-slate-800 dark:text-slate-100 mb-6">$0<span className="text-sm font-medium text-slate-500">/mo</span></p>
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-400">
-                  <CheckCircle2 className="size-5 text-emerald-500" /> 5 Monitors
-                </li>
-                <li className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-400">
-                  <CheckCircle2 className="size-5 text-emerald-500" /> 5-minute intervals
-                </li>
-                <li className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-400">
-                  <CheckCircle2 className="size-5 text-emerald-500" /> Email alerts
-                </li>
-              </ul>
-              {user.plan === 'free' || !user.plan ? (
-                <button disabled className="w-full py-3.5 rounded-2xl bg-slate-100 dark:bg-background-dark border border-line/50 text-slate-400 font-bold uppercase tracking-widest text-xs shadow-inner cursor-not-allowed">
-                  Current Allocation
-                </button>
-              ) : (
-                <button className="w-full py-3.5 rounded-2xl border border-line/80 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-widest text-xs hover:bg-slate-100 dark:hover:bg-line/30 hover:text-slate-900 dark:hover:text-slate-200 shadow-sm transition-all hover:border-line">
-                  Downgrade
-                </button>
-              )}
-            </div>
+                    <div className="space-y-2">
+                       <label className="text-[9px] font-bold text-ink/60 uppercase tracking-widest ml-1">Security Secret</label>
+                       <div className="relative group">
+                          <input 
+                            type="password" 
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full bg-panel border border-line/40 rounded-xl px-5 py-3 text-[11px] font-bold text-ink focus:outline-none focus:border-primary/50 transition-all font-mono uppercase tracking-widest p-4 whitespace-nowrap overflow-hidden transition-all duration-300"
+                            placeholder="Leave blank to maintain"
+                          />
+                          <Lock className="absolute right-4 top-1/2 -translate-y-1/2 size-3.5 text-ink/20 group-focus-within:text-primary transition-colors" />
+                       </div>
+                    </div>
+                 </div>
 
-            {/* Pro Plan */}
-            <div className={`p-8 rounded-3xl border transition-all duration-300 ${user.plan === 'pro' ? 'border-primary/50 bg-primary/5 shadow-sm' : 'border-line/50 bg-slate-50 dark:bg-background-dark/30 relative overflow-hidden hover:border-primary/30 hover:shadow-primary/5 group/pro'}`}>
-              {user.plan !== 'pro' && (
-                <div className="absolute top-0 right-0 w-48 h-48 bg-primary/10 rounded-full -mr-24 -mt-24 blur-3xl pointer-events-none group-hover/pro:bg-primary/20 transition-all duration-500"></div>
-              )}
-              <h4 className="text-sm font-bold uppercase tracking-widest text-slate-800 dark:text-slate-100 mb-2 flex items-center gap-2">
-                Pro Cluster <Zap className="size-5 text-primary fill-primary/20" />
-              </h4>
-              <p className="text-4xl font-bold text-slate-800 dark:text-slate-100 mb-6">$12<span className="text-sm font-medium text-slate-500">/mo</span></p>
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-400">
-                  <CheckCircle2 className="size-5 text-primary" /> 50 Monitors
-                </li>
-                <li className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-400">
-                  <CheckCircle2 className="size-5 text-primary" /> 1-minute intervals
-                </li>
-                <li className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-400">
-                  <CheckCircle2 className="size-5 text-primary" /> SMS & Webhook alerts
-                </li>
-                <li className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-400">
-                  <CheckCircle2 className="size-5 text-primary" /> Custom Status Pages
-                </li>
-              </ul>
-              {user.plan === 'pro' ? (
-                <button disabled className="w-full py-3.5 rounded-2xl bg-slate-100 dark:bg-background-dark border border-line/50 text-slate-400 font-bold uppercase tracking-widest text-xs shadow-inner cursor-not-allowed">
-                  Current Allocation
-                </button>
-              ) : (
-                <button onClick={handleUpgrade} disabled={loading} className="w-full flex justify-center items-center py-3.5 rounded-2xl bg-primary/10 border border-primary/30 text-primary font-bold uppercase tracking-widest text-xs hover:bg-primary/20 hover:shadow-[0_4px_20px_rgba(var(--primary),0.2)] shadow-[0_0_15px_rgba(var(--primary),0.1)] transition-all duration-300 active:scale-[0.98] disabled:opacity-50 relative overflow-hidden">
-                  <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[100%] group-hover/pro:animate-[shimmer_1.5s_infinite]"></div>
-                  {loading ? <Activity className="size-5 text-primary animate-pulse" /> : 'Upgrade Allocation'}
-                </button>
-              )}
-            </div>
-          </div>
-        </section>
+                 <button 
+                    type="submit" 
+                    disabled={saveLoading}
+                    className="px-10 py-3.5 bg-primary text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:translate-y-[-1px] transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 italic"
+                 >
+                    {saveLoading && <RefreshCw className="size-3.5 animate-spin" />}
+                    {saveLoading ? 'Syncing...' : 'Update Protocol'}
+                 </button>
+              </form>
+           </section>
+
+           {/* Access Tiers */}
+           <section className="space-y-8">
+              <div className="flex items-center justify-between border-b border-line/20 pb-4">
+                 <div>
+                    <h2 className="text-xl font-bold text-ink uppercase tracking-tight italic">Access Tiers</h2>
+                    <p className="text-[8px] font-bold text-ink/60 uppercase tracking-widest mt-0.5">Computational Matrix</p>
+                 </div>
+                 <Crown className="size-6 text-primary opacity-20" />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 {[
+                   { 
+                     name: 'Free Deck', 
+                     desc: 'Standard observability tools for developers.',
+                     features: ['5 Global Monitors', '5m Pulse Frequency', 'JSON Logs'],
+                     active: user.plan !== 'pro',
+                     price: '$0',
+                     btn: 'Standard'
+                   },
+                   { 
+                     name: 'Pro Tier', 
+                     desc: 'Production-grade telemetry & massive registry.',
+                     features: ['Unlimited Monitors', '1m Pulse Frequency', 'SMS Inversion', 'REST API Uplink'],
+                     active: user.plan === 'pro',
+                     price: '$12',
+                     btn: 'Upgrade Access',
+                     primary: true
+                   }
+                 ].map((plan, i) => (
+                   <div key={i} className={cn(
+                     "relative p-8 rounded-3xl border-2 transition-all duration-500 overflow-hidden group shadow-sm",
+                     plan.primary 
+                       ? "bg-slate-900 border-primary shadow-xl shadow-primary/10" 
+                       : "bg-panel border-line/40"
+                   )}>
+                      <div className="space-y-6 relative z-10">
+                         <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                               <h3 className={cn("text-xl font-bold uppercase tracking-tight italic", plan.primary ? "text-white" : "text-ink")}>{plan.name}</h3>
+                               {plan.active && <div className="px-2.5 py-0.5 bg-primary text-white text-[7px] font-bold uppercase tracking-widest rounded-full">Active</div>}
+                            </div>
+                            <p className={cn("text-[11px] font-medium leading-relaxed italic", plan.primary ? "text-slate-400" : "text-ink/60")}>{plan.desc}</p>
+                         </div>
+
+                         <div className="flex items-baseline gap-1">
+                            <span className={cn("text-3xl font-black italic", plan.primary ? "text-white" : "text-ink")}>{plan.price}</span>
+                            <span className={cn("text-[8px] font-bold uppercase tracking-widest", plan.primary ? "text-ink/60" : "text-ink/60")}>/ Perpetual</span>
+                         </div>
+
+                         <div className="space-y-2.5">
+                            {plan.features.map((f, j) => (
+                              <div key={j} className="flex items-center gap-3">
+                                 <ShieldCheck className={cn("size-3.5", plan.primary ? "text-primary" : "text-emerald-500")} />
+                                 <span className={cn("text-[9px] font-bold uppercase tracking-widest italic", plan.primary ? "text-white" : "text-ink")}>{f}</span>
+                              </div>
+                            ))}
+                         </div>
+
+                         <button 
+                           onClick={plan.primary && !plan.active ? handleUpgrade : undefined}
+                           disabled={plan.active || loading}
+                           className={cn(
+                             "w-full py-3.5 rounded-xl font-bold text-[9px] uppercase tracking-widest transition-all shadow-lg italic",
+                             plan.active 
+                               ? "bg-white/5 text-white/30 cursor-not-allowed border border-white/5" 
+                               : plan.primary
+                                 ? "bg-primary text-white hover:translate-y-[-1px] shadow-primary/20"
+                                 : "bg-panel text-ink border border-line/40 transition-all duration-300"
+                           )}
+                         >
+                            {loading && plan.primary ? <RefreshCw className="size-3.5 animate-spin mx-auto" /> : plan.active ? 'Registry Active' : plan.btn}
+                         </button>
+                      </div>
+                   </div>
+                 ))}
+              </div>
+           </section>
+
+           {/* Metrics Footer */}
+           <section className="bg-panel border border-line/40 p-8 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+              <div className="space-y-3 flex-1">
+                 <div className="flex items-center gap-3">
+                    <Box className="size-4 text-primary" />
+                    <h3 className="text-[10px] font-bold text-ink uppercase tracking-widest italic">Storage Allocation</h3>
+                 </div>
+                 <p className="text-[11px] font-medium text-ink/60 italic leading-relaxed">
+                    Data encrypted across redundancy clusters. SHA-256 verified persistence.
+                 </p>
+              </div>
+              <div className="flex items-center gap-6">
+                 <div className="text-right">
+                    <span className="text-[8px] font-bold text-ink/60 uppercase tracking-widest">Usage</span>
+                    <h4 className="text-2xl font-black text-ink italic tracking-tighter">04%</h4>
+                 </div>
+                 <div className="size-12 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500 shadow-sm">
+                    <ShieldCheck className="size-6" />
+                 </div>
+              </div>
+           </section>
+
+        </main>
       </div>
+
+      <footer className="pt-8 border-t border-line/40 flex justify-between items-center opacity-40 text-[10px] font-bold text-ink/60 uppercase tracking-widest italic">
+         <div>Identity Persistence: NOMINAL // Registry Alpha</div>
+         <div>SaaS System Profile v4.0.2</div>
+      </footer>
     </div>
   );
 }

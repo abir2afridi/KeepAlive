@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, CheckCircle2, Gauge, ChevronRight, ChevronLeft, Server, Globe, CloudCog, Trash2, MoreVertical, Edit2 } from 'lucide-react';
+import { 
+  Activity, ChevronRight, PlusCircle, ShieldCheck, RefreshCw,
+  ArrowUpRight, BarChart3, Clock, Radio, LayoutDashboard
+} from 'lucide-react';
 import { cn } from '../components/Layout';
+import { AnalogMeter } from '../components/ui/AnalogMeter';
 
 interface Monitor {
   id: string;
@@ -12,7 +16,8 @@ interface Monitor {
   last_response_time: number | null;
   uptime_percent: number | null;
   last_pinged_at: string | null;
-  recent_pings: { response_time: number; is_up: number; created_at: string }[];
+  last_error_message?: string;
+  recent_pings: { response_time: number; is_up: number; error_message?: string; created_at: string }[];
 }
 
 interface Stats {
@@ -21,21 +26,39 @@ interface Stats {
   avg_response_time: number;
 }
 
+const MiniChart = ({ data, color = "#5551FF" }: { data: any[], color?: string }) => {
+  if (!data || data.length < 2) {
+    return (
+      <div className="h-full w-full bg-base rounded-md flex items-center justify-center opacity-30">
+        <Activity className="size-2 text-primary animate-pulse" />
+      </div>
+    );
+  }
+  const points = data.map(p => p.response_time);
+  const max = Math.max(...points, 10);
+  const min = Math.min(...points);
+  const range = max - min || 10;
+  const step = 100 / (data.length - 1);
+  const pathData = data.map((p, i) => `${i === 0 ? 'M' : 'L'} ${i * step} ${95 - ((p.response_time - min) / range * 90)}`).join(' ');
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible opacity-50 transition-all duration-1000">
+      <path d={pathData} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+};
+
 export default function Dashboard() {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [stats, setStats] = useState<Stats>({ total_monitors: 0, overall_uptime: 0, avg_response_time: 0 });
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Get user from localStorage to construct status page link
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const statusSlug = user?.status_slug || '';
-
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setIsRefreshing(true);
     try {
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
-      
       const [monitorsRes, statsRes] = await Promise.all([
         fetch('/api/monitors', { headers }),
         fetch('/api/stats', { headers })
@@ -48,217 +71,193 @@ export default function Dashboard() {
       console.error('Failed to fetch data', error);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 5000); // Refresh every 5s
+    const interval = setInterval(() => fetchData(true), 15000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this monitor?')) return;
-    
-    try {
-      const token = localStorage.getItem('token');
-      await fetch(`/api/monitors/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      fetchData();
-    } catch (error) {
-      console.error('Failed to delete monitor', error);
-    }
-  };
-
-  const getStatusColor = (isUp: number | null) => {
-    if (isUp === null) return 'text-slate-500 bg-slate-500/10 border-slate-500/20';
-    return isUp ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' : 'text-rose-500 bg-rose-500/10 border-rose-500/20';
-  };
-
-  const getStatusDot = (isUp: number | null) => {
-    if (isUp === null) return 'bg-slate-500';
-    return isUp ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500';
-  };
-
-  const getMonitorIcon = (type: string) => {
-    switch (type) {
-      case 'Website': return <Globe className="size-5 text-slate-400" />;
-      case 'API Endpoint': return <Server className="size-5 text-slate-400" />;
-      case 'Supabase Keep-Alive': return <CloudCog className="size-5 text-slate-400" />;
-      default: return <Activity className="size-5 text-slate-400" />;
-    }
-  };
+  if (loading) return (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-6">
+      <RefreshCw className="size-8 text-primary animate-spin" />
+      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic animate-pulse">Syncing Telemetry...</span>
+    </div>
+  );
 
   return (
-    <div className="max-w-6xl mx-auto">
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="relative overflow-hidden bg-panel/70 backdrop-blur-2xl border border-line shadow-sm hover:shadow-lg hover:border-primary/40 p-6 rounded-3xl flex flex-col gap-1 transition-all duration-300 group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-primary/20 transition-colors duration-500"></div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Total Monitors</p>
-            <div className="p-2 rounded-xl bg-primary/10 border border-primary/20 shadow-inner group-hover:scale-110 transition-transform">
-              <Activity className="size-5 text-primary drop-shadow-[0_0_8px_rgba(var(--primary),0.4)]" />
-            </div>
-          </div>
-          <p className="text-5xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">{stats.total_monitors}</p>
+    <div className="max-w-6xl mx-auto space-y-12 transition-all duration-700">
+      
+      <div className="flex items-center justify-between pb-4 border-b border-line/40">
+        <h2 className="text-xs font-bold text-ink/60 uppercase tracking-[0.3em] italic">Operational Intelligence</h2>
+      </div>
+      {/* Stats Grid - Minimalist & Premium */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-panel border border-line/40 p-8 rounded-3xl flex flex-col gap-6 shadow-sm hover:translate-y-[-2px] transition-all">
+           <div className="flex items-center justify-between">
+              <div className="size-10 rounded-xl flex items-center justify-center border border-current/10 shadow-sm bg-primary/5 text-primary">
+                 <Activity className="size-5" />
+              </div>
+              {isRefreshing && <RefreshCw className="size-3 text-primary animate-spin" />}
+           </div>
+           <div>
+              <span className="text-[9px] font-bold text-ink/60 uppercase tracking-[0.2em] italic mb-1.5 block">Active nodes</span>
+              <h2 className="text-3xl font-black tracking-tight text-ink tabular-nums italic">{stats.total_monitors}</h2>
+           </div>
         </div>
 
-        <div className="relative overflow-hidden bg-panel/70 backdrop-blur-2xl border border-line shadow-sm hover:shadow-lg hover:border-emerald-500/40 p-6 rounded-3xl flex flex-col gap-1 transition-all duration-300 group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-emerald-500/20 transition-colors duration-500"></div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Overall Uptime</p>
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 shadow-inner group-hover:scale-110 transition-transform">
-              <CheckCircle2 className="size-5 text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-            </div>
-          </div>
-          <p className="text-5xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">{stats.overall_uptime.toFixed(2)}%</p>
+        <div className="bg-panel border border-line/40 p-6 rounded-3xl shadow-sm hover:translate-y-[-2px] transition-all flex flex-col items-center justify-center relative overflow-hidden group">
+           <div className="absolute top-4 right-4 text-[8px] font-black text-emerald-500/40 uppercase tracking-widest italic">Stable</div>
+           <AnalogMeter 
+             value={stats.overall_uptime} 
+             max={100} 
+             unit="%" 
+             label="Global Uptime" 
+             colorClass="text-emerald-500"
+             className="w-full"
+           />
+           <p className="text-[9px] text-ink/40 italic mt-2 text-center px-4">Cluster availability within nominal safety thresholds.</p>
         </div>
 
-        <div className="relative overflow-hidden bg-panel/70 backdrop-blur-2xl border border-line shadow-sm hover:shadow-lg hover:border-amber-500/40 p-6 rounded-3xl flex flex-col gap-1 transition-all duration-300 group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-amber-500/20 transition-colors duration-500"></div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Avg Response</p>
-            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 shadow-inner group-hover:scale-110 transition-transform">
-              <Gauge className="size-5 text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
-            </div>
-          </div>
-          <p className="text-5xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">
-            {Math.round(stats.avg_response_time)}
-            <span className="text-xl font-medium text-slate-400 ml-1">ms</span>
-          </p>
+        <div className="bg-panel border border-line/40 p-6 rounded-3xl shadow-sm hover:translate-y-[-2px] transition-all flex flex-col items-center justify-center relative overflow-hidden group">
+           <div className="absolute top-4 right-4 text-[8px] font-black text-blue-500/40 uppercase tracking-widest italic">Optimized</div>
+           <AnalogMeter 
+             value={stats.avg_response_time} 
+             max={1000} 
+             unit="ms" 
+             label="Avg Latency" 
+             colorClass="text-blue-500"
+             className="w-full"
+           />
+           <p className="text-[9px] text-ink/40 italic mt-2 text-center px-4">Global velocity synchronized across all active edge nodes.</p>
         </div>
       </div>
 
-      {/* Active Monitors Table */}
-      <div className="bg-panel/60 backdrop-blur-2xl border border-line shadow-lg hover:shadow-xl rounded-3xl overflow-hidden flex flex-col transition-all duration-500">
-        <div className="p-6 object-cover border-b border-line flex items-center justify-between bg-slate-800/5 dark:bg-background-dark/30">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-slate-700 dark:text-slate-200">Active Monitors</h2>
-          <div className="flex gap-3">
-            {statusSlug && (
-              <Link to={`/status/${statusSlug}`} target="_blank" rel="noopener noreferrer" className="px-5 py-2.5 text-xs font-bold uppercase tracking-widest bg-slate-100/50 hover:bg-slate-200 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl flex items-center gap-2 transition-all shadow-sm border border-line hover:border-slate-500/30">
-                <Globe className="size-4" /> Status Page
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+        
+        {/* Main List */}
+        <div className="lg:col-span-2 space-y-8">
+           <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-bold text-ink uppercase tracking-[0.3em] italic">Telemetry Stream</h3>
+              <Link to="/monitors" className="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline flex items-center gap-1.5 transition-all">
+                 Registry <ArrowUpRight className="size-3" />
               </Link>
-            )}
-            <button onClick={fetchData} className="px-5 py-2.5 text-xs font-bold uppercase tracking-widest bg-slate-100/50 hover:bg-slate-200 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl flex items-center gap-2 transition-all shadow-sm border border-line hover:border-slate-500/30">
-              <Activity className="size-4" /> Refresh
-            </button>
-          </div>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-800/10 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-widest font-bold border-b border-line">
-              <tr>
-                <th className="px-6 py-5 font-bold">Name & URL</th>
-                <th className="px-6 py-5 font-bold">Status</th>
-                <th className="px-6 py-5 font-bold text-center">Type</th>
-                <th className="px-6 py-5 font-bold text-center">Uptime</th>
-                <th className="px-6 py-5 font-bold">Last Ping</th>
-                <th className="px-6 py-5 font-bold">Response</th>
-                <th className="px-6 py-5 font-bold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line text-sm">
-              {monitors.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500 font-medium text-xs">
-                    No monitors configured. Create one to get started.
-                  </td>
-                </tr>
+           </div>
+           
+           <div className="space-y-4">
+              {monitors.length === 0 ? (
+                <div className="py-24 text-center border-2 border-dashed border-line/20 rounded-3xl opacity-50 flex flex-col items-center gap-4">
+                   <Clock className="size-8 text-ink/70" />
+                   <p className="text-[10px] font-bold text-ink/60 uppercase tracking-widest italic">No node activity recorded</p>
+                </div>
+              ) : (
+                monitors.slice(0, 6).map(monitor => (
+                  <Link 
+                    key={monitor.id} 
+                    to={`/monitors/${monitor.id}`}
+                    className="flex items-center justify-between p-6 bg-panel hover:bg-panel/80 border border-line/40 rounded-2xl transition-all shadow-sm group"
+                  >
+                    <div className="flex items-center gap-6">
+                       <div className={cn(
+                         "size-2 rounded-full ring-4 shadow-sm",
+                         monitor.current_is_up === 1 ? "bg-emerald-500 ring-emerald-500/10" : "bg-rose-500 ring-rose-500/10"
+                       )} />
+                       <div className="space-y-1">
+                          <h4 className="text-lg font-bold text-ink group-hover:text-primary transition-colors italic uppercase tracking-tight">{monitor.name}</h4>
+                          <span className="text-[10px] text-ink/60 font-medium truncate max-w-[180px] block italic mono tracking-tight">{monitor.url}</span>
+                          {monitor.current_is_up === 0 && monitor.last_error_message && (
+                            <span className="text-[9px] text-rose-500 font-bold block italic uppercase tracking-tighter mt-0.5">
+                               FAULT: {monitor.last_error_message}
+                            </span>
+                          )}
+                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-10">
+                       <div className="hidden sm:block w-24 h-6 opacity-30 group-hover:opacity-100 transition-opacity">
+                          <MiniChart data={monitor.recent_pings?.slice(-15) || []} color={monitor.current_is_up === 1 ? "#10b981" : "#f43f5e"} />
+                       </div>
+                       <div className="text-right w-16">
+                          <div className="text-xl font-bold text-ink tabular-nums tracking-tighter italic">
+                            {monitor.last_response_time || '--'}<span className="text-xs ml-0.5 text-primary">ms</span>
+                          </div>
+                          <div className="text-[9px] font-bold text-ink/60 uppercase tracking-widest italic">Velocity</div>
+                       </div>
+                       <ChevronRight className="size-4 text-ink/70 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                    </div>
+                  </Link>
+                ))
               )}
-              {monitors.map(monitor => (
-                <tr key={monitor.id} className="hover:bg-slate-800/5 dark:hover:bg-slate-800/20 transition-colors group border-b border-line/40 last:border-0">
-                  <td className="px-6 py-5">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-slate-800 dark:text-slate-200 text-[15px]">{monitor.name}</span>
-                      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1 truncate max-w-[200px]">{monitor.url}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5 flex items-center h-full">
-                    <span className={cn("inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-sm", getStatusColor(monitor.current_is_up))}>
-                      <span className={cn("size-2 rounded-full mr-2 shadow-inner", getStatusDot(monitor.current_is_up))}></span>
-                      {monitor.current_is_up === null ? 'PENDING' : monitor.current_is_up ? 'ACTIVE' : 'DOWN'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-5 text-center">
-                    <div className="mx-auto w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border border-line text-slate-400 group-hover:text-primary group-hover:border-primary/40 group-hover:shadow-[0_0_15px_rgba(var(--primary),0.1)] transition-all shadow-sm">
-                      {getMonitorIcon(monitor.type)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-5 text-center">
-                    <span className={cn("font-bold text-sm", monitor.uptime_percent && monitor.uptime_percent < 99 ? "text-rose-500" : "text-emerald-500")}>
-                      {monitor.uptime_percent !== null ? `${monitor.uptime_percent.toFixed(1)}%` : '--'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="flex flex-col gap-1 text-[11px] font-medium">
-                      <span className="text-slate-500 dark:text-slate-400">
-                        {monitor.last_pinged_at ? new Date(monitor.last_pinged_at + 'Z').toLocaleTimeString() : 'NEVER'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-end gap-[3px] h-8 bg-slate-800/5 dark:bg-slate-900/30 p-1.5 rounded-lg shadow-inner">
-                        {/* Sparkline bars */}
-                        {Array.from({ length: 10 }).map((_, i) => {
-                          const ping = monitor.recent_pings?.[i];
-                          if (!ping) return <div key={i} className="w-1 h-1 bg-line rounded-sm"></div>;
-                          
-                          if (!ping.is_up) return <div key={i} className="w-1 h-full bg-rose-500 rounded-sm"></div>;
-                          
-                          // Calculate height based on response time (max 1000ms = full height)
-                          const heightPercent = Math.min(100, Math.max(20, (ping.response_time / 1000) * 100));
-                          
-                          return (
-                            <div 
-                              key={i} 
-                              className="w-[5px] bg-primary rounded-sm opacity-80 group-hover:opacity-100 hover:bg-primary/80 transition-all hover:scale-y-110"
-                              style={{ height: `${Math.max(15, heightPercent)}%` }}
-                            ></div>
-                          );
-                        })}
-                      </div>
-                      <span className="text-[11px] font-mono text-slate-400 w-12">
-                        {monitor.last_response_time !== null ? `${monitor.last_response_time}ms` : '--'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Link to={`/monitors/${monitor.id}/edit`} className="p-2.5 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors shadow-sm" title="Edit Monitor">
-                        <Edit2 className="size-4.5" />
-                      </Link>
-                      <button 
-                        onClick={() => handleDelete(monitor.id)}
-                        className="p-2.5 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors shadow-sm"
-                        title="Delete Monitor"
-                      >
-                        <Trash2 className="size-4.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+           </div>
         </div>
-        
-        <div className="p-5 bg-slate-800/10 dark:bg-slate-900/40 border-t border-line flex justify-between items-center">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Showing {monitors.length} monitors</span>
-          <div className="flex gap-2">
-            <button className="p-2 rounded-xl border border-line bg-panel/30 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 shadow-sm">
-              <ChevronLeft className="size-4.5" />
-            </button>
-            <button className="p-2 rounded-xl border border-line bg-panel/30 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors shadow-sm">
-              <ChevronRight className="size-4.5" />
-            </button>
-          </div>
+
+        {/* Sidebar */}
+        <div className="space-y-8">
+            
+            <div className="bg-slate-900 dark:bg-base p-8 rounded-3xl shadow-xl text-white dark:text-slate-900 relative overflow-hidden group">
+               <div className="absolute inset-0 bg-primary/20 blur-3xl scale-150 opacity-0 group-hover:opacity-100 transition-all duration-1000" />
+               <div className="relative z-10 space-y-6">
+                  <div className="size-10 bg-base/10 dark:bg-black/5 rounded-xl flex items-center justify-center">
+                    <ShieldCheck className="size-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-bold tracking-tight uppercase italic">Operational Status</h4>
+                    <p className="text-[10px] opacity-60 mt-1.5 leading-relaxed italic">Systems performing within optimal parameters.</p>
+                  </div>
+                  <div className="pt-4 border-t border-white/10 dark:border-black/5">
+                     <div className="flex justify-between items-center mb-[-2rem]">
+                        <span className="text-[8px] font-bold uppercase tracking-widest opacity-50 relative z-20">Stability Index</span>
+                     </div>
+                     <AnalogMeter 
+                       value={stats.overall_uptime} 
+                       min={0} 
+                       max={100} 
+                       unit="%" 
+                       label="System Uptime"
+                       colorClass="text-primary"
+                     />
+                  </div>
+               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+               {[
+                 { icon: BarChart3, label: 'Analytics', link: '/monitors' },
+                 { icon: Clock, label: 'Incidents', link: '/status' },
+               ].map((action, i) => (
+                 <Link key={i} to={action.link} className="p-6 bg-panel border border-line/40 rounded-2xl hover:bg-panel/80 transition-all text-center space-y-3 group shadow-sm">
+                    <action.icon className="size-4 text-ink/60 mx-auto group-hover:text-primary transition-colors" />
+                    <span className="block text-[10px] font-bold text-ink/60 uppercase tracking-widest italic">{action.label}</span>
+                 </Link>
+               ))}
+            </div>
+
+            <div className="p-8 bg-panel border border-line/40 rounded-3xl space-y-6 shadow-sm">
+               <h4 className="text-xs font-bold text-ink/60 uppercase tracking-widest flex items-center gap-2 italic">
+                  <Clock className="size-3 text-primary" /> Session logs
+               </h4>
+               <div className="space-y-4">
+                  <div className="flex justify-between items-baseline">
+                     <span className="text-xs font-medium text-ink/60 italic">Security</span>
+                     <span className="text-[11px] font-bold text-emerald-500 uppercase tracking-widest">Active</span>
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                     <span className="text-xs font-medium text-ink/60 italic">Version</span>
+                     <span className="text-xs font-bold text-ink uppercase tracking-tight">v4.0.2</span>
+                  </div>
+               </div>
+            </div>
+
         </div>
       </div>
+      
+      <footer className="pt-10 border-t border-line/40 flex justify-between items-center opacity-30 text-xs font-bold text-ink/60 uppercase tracking-widest italic">
+         <div>Distributed Observability Engine // Nominal</div>
+         <div>&copy; 2026 KeepAlive.io</div>
+      </footer>
     </div>
   );
 }

@@ -10,7 +10,10 @@ import {
   Search,
   Bell,
   HelpCircle,
-  LogOut
+  LogOut,
+  ChevronRight,
+  ShieldCheck,
+  Command
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -33,31 +36,46 @@ export default function Layout() {
   };
 
   const navItems = [
-    { icon: LayoutGrid, label: 'Dashboard', path: '/dashboard' },
-    { icon: Activity, label: 'Monitors', path: '/monitors' },
-    { icon: BellRing, label: 'Alert Channels', path: '/alerts' },
-    { icon: Globe, label: 'Status Pages', path: '/status' },
+    { icon: LayoutGrid, label: 'DASHBOARD', path: '/dashboard' },
+    { icon: Activity, label: 'MONITORS', path: '/monitors' },
+    { icon: BellRing, label: 'ALERTS', path: '/alerts' },
+    { icon: Globe, label: 'STATUS', path: '/status' },
   ];
 
+  const pageTitles: Record<string, string> = {
+    '/dashboard': 'DASHBOARD',
+    '/monitors': 'MONITOR SYSTEM',
+    '/monitors/new': 'PROVISION NODE',
+    '/alerts': 'ALERT CHANNELS',
+    '/status': 'STATUS PAGES',
+    '/settings': 'ACCOUNT SETTINGS',
+  };
+
+  const currentPath = location.pathname;
+  const currentTitle = Object.entries(pageTitles).find(([path]) => currentPath.startsWith(path))?.[1] || 'OPERATIONS';
+
   return (
-    <div className="flex h-screen overflow-hidden bg-background-dark text-slate-100 font-sans selection:bg-primary/20">
+    <div className="flex h-screen overflow-hidden bg-base text-ink font-sans transition-colors duration-700">
       
-      {/* Sidebar */}
-      <aside className="w-64 flex-shrink-0 border-r border-line bg-panel/70 backdrop-blur-2xl shadow-lg flex flex-col relative z-20 transition-all duration-300">
-        <div className="p-6 flex items-center gap-3 border-b border-line/40">
-          <div className="size-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-sm shadow-primary/20">
-            <Zap className="size-4 fill-current drop-shadow-sm" />
-          </div>
-          <div className="flex flex-col">
-            <h1 className="text-sm font-semibold tracking-wide text-slate-200">KeepAlive</h1>
-            <p className="text-[10px] text-primary/80 font-mono tracking-wider font-medium">v2.0.4-beta</p>
-          </div>
+      {/* Refined Sidebar */}
+      <aside className="w-72 flex-shrink-0 border-r border-line bg-panel backdrop-blur-2xl flex flex-col relative z-20 shadow-xl transition-all duration-500 overflow-hidden">
+        
+        {/* Branding Area */}
+         <div className="p-8 pb-6 flex items-center gap-4">
+           <div className="size-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
+              <Zap className="size-5 fill-white" />
+           </div>
+           <div>
+              <h1 className="text-xl font-extrabold tracking-tight text-ink uppercase italic leading-none">Keep<span className="text-primary">Alive</span></h1>
+              <p className="text-[10px] text-ink/40 font-bold tracking-[0.3em] uppercase mt-1">v4.0 Protocol</p>
+           </div>
         </div>
 
-        <nav className="flex-1 px-4 py-8 space-y-1 overflow-y-auto">
-          <div className="mb-6">
-            <p className="px-3 text-[10px] uppercase tracking-widest font-semibold text-slate-500/70 mb-3">Monitoring</p>
-            <div className="space-y-1">
+        {/* Navigation Registry */}
+        <nav className="flex-1 px-6 py-4 space-y-10 overflow-y-auto custom-scrollbar-minimal">
+          <div className="space-y-3">
+            <p className="px-3 text-[11px] uppercase tracking-[0.3em] font-bold text-ink/30 italic">Registry</p>
+            <div className="space-y-1.5">
               {navItems.map((item) => {
                 const isActive = location.pathname.startsWith(item.path);
                 return (
@@ -65,110 +83,120 @@ export default function Layout() {
                     key={item.path}
                     to={item.path}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 group relative overflow-hidden",
+                      "flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 group relative",
                       isActive 
-                        ? "text-primary bg-primary/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]" 
-                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                        ? "text-primary bg-primary/5 border border-primary/10 shadow-sm" 
+                        : "text-ink/50 hover:text-ink hover:bg-base border border-transparent"
                     )}
                   >
-                    {isActive && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-r-full shadow-[0_0_10px_rgba(var(--primary),0.5)]" />
+                    <div className="flex items-center gap-3 relative z-10">
+                      <item.icon className={cn("size-5 transition-transform", isActive && "text-primary")} />
+                      <span className="text-xs font-bold tracking-widest italic">{item.label}</span>
+                    </div>
+                    {isActive ? (
+                      <div className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_#5551FF]" />
+                    ) : (
+                      <ChevronRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0" />
                     )}
-                    <item.icon className={cn("size-4.5 transition-transform duration-300 group-hover:scale-110", isActive && "drop-shadow-[0_0_6px_rgba(var(--primary),0.3)]")} />
-                    <span className="text-sm font-medium tracking-wide">{item.label}</span>
                   </Link>
                 );
               })}
             </div>
           </div>
 
-          <div className="pt-6 pb-2 border-t border-line/40">
-            <p className="px-3 text-[10px] uppercase tracking-widest font-semibold text-slate-500/70 mb-3">System</p>
-            <div className="space-y-1">
+          <div className="space-y-3 pt-6 border-t border-line/50">
+            <p className="px-3 text-[11px] uppercase tracking-[0.3em] font-bold text-ink/30 italic">Systems</p>
+            <div className="space-y-1.5">
               <Link
                 to="/settings"
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 transition-all duration-300 group"
+                className={cn(
+                  "flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 group border border-transparent",
+                  location.pathname === '/settings' 
+                    ? "text-primary bg-primary/5 border-primary/10" 
+                    : "text-ink/50 hover:text-ink hover:bg-base"
+                )}
               >
-                <Settings className="size-4.5 transition-transform duration-300 group-hover:rotate-45" />
-                <span className="text-sm font-medium">Settings</span>
+                <div className="flex items-center gap-3">
+                  <Settings className="size-4.5 group-hover:rotate-90 transition-transform duration-500" />
+                  <span className="text-[10px] font-bold tracking-widest italic uppercase">Settings</span>
+                </div>
+                <ChevronRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-all" />
               </Link>
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-all duration-300 group"
+                className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-ink/50 hover:text-rose-500 hover:bg-rose-500/10 transition-all duration-300 group"
               >
-                <LogOut className="size-4.5 transition-transform duration-300 group-hover:-translate-x-1" />
-                <span className="text-sm font-medium">Log out</span>
+                <div className="flex items-center gap-3">
+                  <LogOut className="size-4.5" />
+                  <span className="text-[10px] font-bold tracking-widest italic uppercase">Logout</span>
+                </div>
               </button>
             </div>
           </div>
         </nav>
 
-        <div className="p-4 border-t border-line/40 bg-background-dark/20 backdrop-blur-md">
-          <Link
-            to="/monitors/new"
-            className="w-full flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary font-medium text-sm py-2.5 rounded-xl transition-all duration-300 shadow-[0_4px_12px_rgba(var(--primary),0.05)] hover:shadow-[0_4px_16px_rgba(var(--primary),0.1)] active:scale-95"
-          >
-            <PlusCircle className="size-4.5" />
-            New Monitor
-          </Link>
-        </div>
+        {/* Global Action Removed as requested */}
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-background-dark relative">
-        {/* Subtle grid background for premium tech feel */}
-        <div className="absolute inset-0 pointer-events-none opacity-[0.02] dark:opacity-[0.04]" style={{ backgroundImage: 'linear-gradient(var(--color-line) 1px, transparent 1px), linear-gradient(90deg, var(--color-line) 1px, transparent 1px)', backgroundSize: '32px 32px' }}></div>
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] pointer-events-none opacity-50 dark:opacity-20 animate-pulse" style={{ animationDuration: '8s' }}></div>
+      {/* Main Command Processor */}
+      <main className="flex-1 flex flex-col overflow-hidden relative">
         
-        {/* Header */}
-        <header className="h-16 flex-shrink-0 border-b border-line/40 bg-panel/50 backdrop-blur-2xl flex items-center justify-between px-8 relative z-10 shadow-sm transition-all duration-300">
-          <div className="flex items-center gap-4 flex-1">
-            <div className="relative w-full max-w-md group">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 group-focus-within:text-primary transition-colors">
-                <Search className="size-4.5" />
+        {/* Refined Header */}
+        <header className="h-16 flex-shrink-0 border-b border-line bg-panel/80 backdrop-blur-xl flex items-center justify-between px-8 relative z-10 transition-all">
+          
+          <div className="flex items-center gap-6">
+             <div className="flex flex-col">
+                <h2 className="text-base font-bold tracking-tighter text-ink italic uppercase leading-none">{currentTitle}</h2>
+                <span className="text-[10px] font-bold text-primary uppercase tracking-widest italic mt-1.5">SECURED REGISTRY</span>
+             </div>
+          </div>
+
+          <div className="flex items-center gap-6 flex-1 max-w-sm ml-auto mr-6">
+            <div className="relative w-full group">
+              <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-ink/40">
+                <Search className="size-4" />
               </span>
               <input 
                 type="text" 
-                placeholder="Search monitors (⌘K)..." 
-                className="block w-full pl-11 pr-4 py-2 border border-line/60 rounded-2xl bg-slate-800/10 dark:bg-background-dark/50 text-sm placeholder-slate-500 hover:border-line focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 text-slate-200 transition-all shadow-sm"
+                placeholder="REGISTRY QUERY..." 
+                className="block w-full pl-10 pr-4 py-2 border border-line rounded-xl bg-base text-sm font-bold italic tracking-widest placeholder:text-ink/30 focus:outline-none focus:ring-4 focus:ring-primary/5 text-ink transition-all shadow-sm"
               />
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-20 group-focus-within:opacity-100 transition-opacity">
+                 <Command className="size-2.5" />
+                 <span className="text-[8px] font-bold">K</span>
+              </div>
             </div>
           </div>
           
-          <div className="flex items-center gap-5">
-            <div className="flex items-center gap-2 border-r border-line/60 pr-5">
+          <div className="flex items-center gap-6 pl-6 border-l border-line/50">
+            <div className="flex items-center gap-3">
               <ThemeToggle />
-              <button className="text-slate-400 hover:text-primary transition-colors p-2 rounded-xl hover:bg-slate-800/50 hover:shadow-sm relative group">
-                <Bell className="size-5 group-hover:scale-110 transition-transform" />
-                <span className="absolute top-1.5 right-1.5 size-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.8)]"></span>
-              </button>
-              <button className="text-slate-400 hover:text-primary transition-colors p-2 rounded-xl hover:bg-slate-800/50 hover:shadow-sm group">
-                <HelpCircle className="size-5 group-hover:scale-110 transition-transform" />
+              <button className="relative p-2.5 rounded-xl bg-base text-ink/40 hover:text-primary transition-all">
+                <Bell className="size-4.5" />
+                <span className="absolute top-2.5 right-2.5 size-1.5 bg-primary rounded-full animate-pulse shadow-[0_0_8px_#5551FF]" />
               </button>
             </div>
             
-            <div className="hidden lg:flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 shadow-sm backdrop-blur-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Op. Normal</span>
-            </div>
-            
-            <div className="flex items-center gap-3 pl-2 cursor-pointer group">
+            <div className="flex items-center gap-4 pl-4 cursor-pointer group select-none border-l border-line/50">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-slate-200 leading-none group-hover:text-primary transition-colors">{user.email || 'sysadmin@local'}</p>
-                <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-semibold">{user.plan || 'Free'} TIER</p>
+                <p className="text-xs font-bold text-ink uppercase tracking-tight truncate max-w-[120px] italic">{user.email?.split('@')[0] || 'ADMIN'}</p>
+                <p className="text-[10px] text-ink/40 font-bold uppercase tracking-widest italic">{user.plan || 'CORE'} TIER</p>
               </div>
-              <div className="size-9 rounded-xl overflow-hidden border border-line group-hover:border-primary/50 transition-colors shadow-sm">
-                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email || 'Alex'}&backgroundColor=111111`} alt="Avatar" className="w-full h-full object-cover" />
+              <div className="size-10 rounded-xl overflow-hidden border border-line group-hover:border-primary/50 transition-all">
+                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email || 'Alex'}&backgroundColor=111111`} alt="Avatar" className="w-full h-full object-cover saturate-50 group-hover:saturate-100 transition-all" />
               </div>
             </div>
           </div>
         </header>
 
-        {/* Page Content */}
-        <div className="flex-1 overflow-y-auto p-8 relative z-10 custom-scrollbar">
+        {/* Dynamic Canvas Background */}
+        <div className="absolute inset-0 pointer-events-none -z-10 opacity-50">
+           <div className="absolute top-0 right-0 w-[30%] h-[30%] bg-primary/5 rounded-full blur-[100px]" />
+           <div className="absolute bottom-0 left-0 w-[20%] h-[20%] bg-blue-500/5 rounded-full blur-[100px]" />
+        </div>
+
+        {/* Global Page Processor */}
+        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
           <Outlet />
         </div>
       </main>

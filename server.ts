@@ -13,12 +13,13 @@ async function startServer() {
   // Trust the first proxy (e.g., nginx) to correctly populate req.ip
   app.set('trust proxy', 1);
 
+  app.use('/api/webhook', express.raw({ type: 'application/json' }));
   app.use(express.json());
 
   // Rate Limiting
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+    max: 1000, // Increased limit for better usability
     standardHeaders: true,
     legacyHeaders: false,
     validate: {
