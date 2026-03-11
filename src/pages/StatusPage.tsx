@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Activity, CheckCircle2, CloudCog, ShieldAlert, ChevronRight, Globe, Zap, BarChart3, RefreshCw } from 'lucide-react';
 import { cn } from '../components/Layout';
 import ThemeToggle from '../components/ThemeToggle';
+import { AnalogMeter } from '../components/ui/AnalogMeter';
 
 interface Monitor {
   id: string;
@@ -240,9 +241,21 @@ export default function StatusPage() {
                          </div>
                        )}
                     </div>
-                    <div className="text-right shrink-0">
-                       <span className="text-2xl font-black text-ink tabular-nums italic">{Math.round(monitor.avg_response_time || 0)}</span>
-                       <span className="text-[9px] block font-bold text-ink/70 uppercase tracking-widest italic">ms lag</span>
+                    <div className="text-right shrink-0 flex items-center gap-4">
+                       <div className="w-16 h-16">
+                          <AnalogMeter 
+                            value={monitor.avg_response_time || 0} 
+                            max={1000} 
+                            label="" 
+                            unit="" 
+                            className="p-0"
+                            colorClass={monitor.avg_response_time < 200 ? "text-emerald-500" : monitor.avg_response_time < 500 ? "text-amber-500" : "text-rose-500"}
+                          />
+                       </div>
+                       <div>
+                          <span className="text-2xl font-black text-ink tabular-nums italic">{Math.round(monitor.avg_response_time || 0)}</span>
+                          <span className="text-[9px] block font-bold text-ink/70 uppercase tracking-widest italic">ms lag</span>
+                       </div>
                     </div>
                  </div>
 

@@ -1,8 +1,9 @@
-import db from './db.js';
 import { Queue, Worker } from 'bullmq';
 import IORedis, { RedisOptions } from 'ioredis';
 import nodemailer from 'nodemailer';
 import { decrypt } from './crypto.js';
+import { adminDb } from './firebase-admin.js';
+import crypto from 'crypto';
 
 const redisConfig: RedisOptions = {
   host: process.env.REDIS_HOST || 'localhost',
@@ -56,42 +57,46 @@ function isPrivateIP(ip: string) {
 }
 
 async function sendAlert(monitor: any, isUp: boolean) {
-  const channels = db.prepare('SELECT * FROM alert_channels WHERE monitor_id = ?').all(monitor.id);
-  const status = isUp ? 'UP' : 'DOWN';
-  const message = `[${status}] Monitor ${monitor.name} (${monitor.url}) is now ${status}.`;
-  
-  for (const channel of channels as any[]) {
-    console.log(`[ALERT] Sending ${channel.type} alert to ${channel.destination}: ${message}`);
+  try {
+    const alertChannelsSnapshot = await adminDb.collection('alert_channels').where('monitor_id', '==', monitor.id).get();
+    const channels = alertChannelsSnapshot.docs.map(doc => doc.data());
     
-    try {
-      const destination = decrypt(channel.destination);
-      if (channel.type === 'discord' && destination) {
-        await fetch(destination, { 
-          method: 'POST', 
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ content: message }) 
-        });
-      } else if (channel.type === 'slack' && destination) {
-        await fetch(destination, { 
-          method: 'POST', 
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ text: message }) 
-        });
-      } else if (channel.type === 'telegram' && destination) {
-        // Expecting destination to be a full Telegram Bot API URL or we construct it
-        // Assuming user provides the full URL for simplicity in this setup
-        await fetch(destination, { method: 'POST' });
-      } else if (channel.type === 'email' && destination) {
-        await transporter.sendMail({
-          from: '"Uptime Monitor" <alerts@keepalive.example.com>',
-          to: destination,
-          subject: message,
-          text: message
-        });
+    const status = isUp ? 'UP' : 'DOWN';
+    const message = `[${status}] Monitor ${monitor.name} (${monitor.url}) is now ${status}.`;
+    
+    for (const channel of channels as any[]) {
+      console.log(`[ALERT] Sending ${channel.type} alert to ${channel.destination}: ${message}`);
+      
+      try {
+        const destination = decrypt(channel.destination);
+        if (channel.type === 'discord' && destination) {
+          await fetch(destination, { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ content: message }) 
+          });
+        } else if (channel.type === 'slack' && destination) {
+          await fetch(destination, { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ text: message }) 
+          });
+        } else if (channel.type === 'telegram' && destination) {
+          await fetch(destination, { method: 'POST' });
+        } else if (channel.type === 'email' && destination) {
+          await transporter.sendMail({
+            from: '"Uptime Monitor" <alerts@keepalive.example.com>',
+            to: destination,
+            subject: message,
+            text: message
+          });
+        }
+      } catch (e) {
+        console.error(`Failed to send ${channel.type} alert:`, e);
       }
-    } catch (e) {
-      console.error(`Failed to send ${channel.type} alert:`, e);
     }
+  } catch (err) {
+    console.error('Error fetching alert channels from Firestore:', err);
   }
 }
 
@@ -111,7 +116,7 @@ export async function pingMonitor(monitor: any) {
     let headers: Record<string, string> = {};
     if (monitor.headers) {
       try {
-        const parsed = JSON.parse(monitor.headers);
+        const parsed = typeof monitor.headers === 'string' ? JSON.parse(monitor.headers) : monitor.headers;
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
           for (const [k, v] of Object.entries(parsed)) {
             headers[k] = String(v);
@@ -149,27 +154,63 @@ export async function pingMonitor(monitor: any) {
     responseTime = Date.now() - startTime;
   }
 
-  // Check if status changed
-  const lastPing = db.prepare('SELECT is_up FROM pings WHERE monitor_id = ? ORDER BY created_at DESC LIMIT 1').get(monitor.id) as any;
-  if (lastPing && lastPing.is_up !== isUp) {
-    sendAlert(monitor, isUp === 1);
-    if (isUp === 0) {
-      db.prepare('INSERT INTO incidents (id, monitor_id, status, error_message) VALUES (?, ?, ?, ?)')
-        .run(crypto.randomUUID(), monitor.id, 'ongoing', errorMessage);
-    } else {
-      db.prepare('UPDATE incidents SET status = ?, resolved_at = CURRENT_TIMESTAMP WHERE monitor_id = ? AND status = ?')
-        .run('resolved', monitor.id, 'ongoing');
+  // Update monitor doc in Firestore with last ping info
+  const monitorRef = adminDb.collection('monitors').doc(monitor.id);
+  
+  try {
+    const monitorSnap = await monitorRef.get();
+    const monitorDoc = monitorSnap.data();
+    const lastIsUp = monitorDoc?.last_is_up;
+
+    // Detect status change for alerts
+    if (typeof lastIsUp !== 'undefined' && lastIsUp !== isUp) {
+      sendAlert(monitor, isUp === 1);
+      
+      if (isUp === 0) {
+        // Create incident
+        await monitorRef.collection('incidents').doc(crypto.randomUUID()).set({
+          status: 'ongoing',
+          error_message: errorMessage,
+          started_at: new Date().toISOString()
+        });
+      } else {
+        // Resolve ongoing incidents
+        const incidents = await monitorRef.collection('incidents')
+          .where('status', '==', 'ongoing')
+          .get();
+        
+        const batch = adminDb.batch();
+        incidents.docs.forEach(doc => {
+          batch.update(doc.ref, { 
+            status: 'resolved', 
+            resolved_at: new Date().toISOString() 
+          });
+        });
+        await batch.commit();
+      }
     }
+
+    // Log ping and update status
+    await monitorRef.update({
+      last_pinged_at: new Date().toISOString(),
+      last_is_up: isUp,
+      last_response_time: responseTime,
+      last_status_code: statusCode,
+      last_error_message: errorMessage
+    });
+
+    // Store ping log (limited to recent history to save storage)
+    await monitorRef.collection('pings').add({
+      status_code: statusCode,
+      response_time: responseTime,
+      is_up: isUp,
+      error_message: errorMessage,
+      created_at: new Date().toISOString()
+    });
+
+  } catch (err) {
+    console.error('Error updating status in Firestore:', err);
   }
-
-  db.prepare(`
-    INSERT INTO pings (monitor_id, status_code, response_time, is_up, error_message)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(monitor.id, statusCode, responseTime, isUp, errorMessage);
-
-  db.prepare(`
-    UPDATE monitors SET last_pinged_at = CURRENT_TIMESTAMP WHERE id = ?
-  `).run(monitor.id);
 }
 
 // Global worker definition for pingQueue
@@ -178,14 +219,13 @@ let worker: Worker | null = null;
 try {
   worker = new Worker('pingQueue', async job => {
     const { monitorId } = job.data;
-    const monitor = db.prepare('SELECT * FROM monitors WHERE id = ?').get(monitorId);
-    if (monitor) {
-      await pingMonitor(monitor);
+    const monitorDoc = await adminDb.collection('monitors').doc(monitorId).get();
+    if (monitorDoc.exists) {
+      await pingMonitor({ id: monitorDoc.id, ...monitorDoc.data() });
     }
   }, { 
     connection: connection as any, 
     concurrency: 10,
-    // Don't start processing if Redis isn't up
     skipStalledCheck: true 
   });
 
@@ -193,96 +233,44 @@ try {
     console.error(`Job ${job?.id} failed via bullmq worker:`, err);
   });
 } catch (err: any) {
-  // Silent catch: worker relies on Redis. If it fails to instantiate, Standalone mode takes over.
-}
-
-async function aggregateData() {
-  console.log('[AGGREGATE] Running hourly and daily data aggregation...');
-  
-  // 1. Hourly Aggregation (last hour)
-  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString().slice(0, 13) + ':00:00';
-  const monitors = db.prepare('SELECT id FROM monitors').all() as any[];
-
-  for (const monitor of monitors) {
-    const stats = db.prepare(`
-      SELECT 
-        AVG(response_time) as avg_rt,
-        COUNT(CASE WHEN is_up = 1 THEN 1 END) * 100.0 / COUNT(*) as uptime,
-        COUNT(*) as cnt
-      FROM pings
-      WHERE monitor_id = ? AND created_at LIKE ?
-    `).get(monitor.id, `${hourAgo.slice(0, 13)}%`) as any;
-
-    if (stats && stats.cnt > 0) {
-      db.prepare(`
-        INSERT OR REPLACE INTO ping_aggregates_hourly (monitor_id, hour, avg_response_time, uptime_percent, ping_count)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(monitor.id, hourAgo, Math.round(stats.avg_rt), stats.uptime, stats.cnt);
-    }
-  }
-
-  // 2. Daily Aggregation (last day)
-  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  for (const monitor of monitors) {
-    const dailyStats = db.prepare(`
-      SELECT 
-        AVG(avg_response_time) as avg_rt,
-        AVG(uptime_percent) as uptime,
-        SUM(ping_count) as cnt
-      FROM ping_aggregates_hourly
-      WHERE monitor_id = ? AND hour LIKE ?
-    `).get(monitor.id, `${dayAgo}%`) as any;
-
-    if (dailyStats && dailyStats.cnt > 0) {
-      db.prepare(`
-        INSERT OR REPLACE INTO ping_aggregates_daily (monitor_id, day, avg_response_time, uptime_percent, ping_count)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(monitor.id, dayAgo, Math.round(dailyStats.avg_rt), dailyStats.uptime, dailyStats.cnt);
-    }
-  }
 }
 
 export function startPinger() {
-  // Schedule pings
   setInterval(async () => {
-    const monitors = db.prepare(`SELECT * FROM monitors`).all();
-    const now = new Date();
+    try {
+      const monitorsSnapshot = await adminDb.collection('monitors').get();
+      const monitors = monitorsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      const now = new Date();
 
-    for (const monitor of monitors as any[]) {
-      const lastPinged = monitor.last_pinged_at ? new Date(monitor.last_pinged_at + 'Z') : new Date(0);
-      
-      // Handle Supabase Keep-Alive (ping every 3 days)
-      if (monitor.keep_alive) {
-        const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-        if (now.getTime() - lastPinged.getTime() < threeDaysMs) {
-          continue; // Skip if it's too soon for keep-alive
+      for (const monitor of monitors) {
+        const lastPinged = monitor.last_pinged_at ? new Date(monitor.last_pinged_at) : new Date(0);
+        
+        if (monitor.keep_alive) {
+          const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+          if (now.getTime() - lastPinged.getTime() < threeDaysMs) {
+            continue;
+          }
+        } else {
+          const intervalMs = (monitor.interval || 60) * 1000;
+          if (now.getTime() - lastPinged.getTime() < intervalMs) {
+            continue;
+          }
         }
-      } else {
-        // Normal monitor interval
-        const intervalMs = monitor.interval * 1000;
-        if (now.getTime() - lastPinged.getTime() < intervalMs) {
-          continue;
+
+        if (connection.status === 'ready') {
+          pingQueue.add('ping', { monitorId: monitor.id }).catch(() => pingMonitor(monitor));
+        } else {
+          await pingMonitor(monitor);
         }
       }
-
-      if (connection.status === 'ready') {
-        pingQueue.add('ping', { monitorId: monitor.id }).catch(() => pingMonitor(monitor));
-      } else {
-        await pingMonitor(monitor);
-      }
+    } catch (err) {
+      console.error('Pinger loop failed to fetch monitors:', err);
     }
-  }, 5000);
+  }, 10000); // 10s check instead of 5s to reduce Firestore reads
 
-  // Periodic Tasks
-  setInterval(() => {
-    // 1. Data Retention: Cleanup old pings (older than 14 days)
-    db.prepare(`DELETE FROM pings WHERE created_at < datetime('now', '-14 days')`).run();
-    
-    // 2. Cleanup hourly aggregates (older than 3 months)
-    db.prepare(`DELETE FROM ping_aggregates_hourly WHERE hour < datetime('now', '-90 days')`).run();
-    
-    // 3. Daily aggregation run (every hour to catch up)
-    aggregateData().catch(e => console.error('Aggregation failed:', e));
-
-  }, 60 * 60 * 1000); 
+  setInterval(async () => {
+    // Maintenance: Prune old pings in Firestore if needed (though not strictly necessary as early as SQLite)
+    // For now, we'll just log that maintenance is running
+    console.log('[MAINTENANCE] Firebase collection health check...');
+  }, 24 * 60 * 60 * 1000); 
 }

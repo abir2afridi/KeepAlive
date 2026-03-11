@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import { cn } from '../components/Layout';
+import { auth } from '../firebase';
+import { sendPasswordResetEmail, confirmPasswordReset } from 'firebase/auth';
 
 export default function ResetPassword() {
   const { token } = useParams<{ token?: string }>();
@@ -24,15 +26,10 @@ export default function ResetPassword() {
     setMsg('');
     
     try {
-      const res = await fetch('/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to request reset sequence');
+      await sendPasswordResetEmail(auth, email);
       setMsg('If credentials match, a recovery payload has been dispatched.');
     } catch (err: any) {
+      console.error('Password reset request error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -41,21 +38,17 @@ export default function ResetPassword() {
 
   const handleConfirmReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!token) return;
     setLoading(true);
     setError('');
     setMsg('');
     
     try {
-      const res = await fetch('/auth/reset-password/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, new_password: password })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to complete reset sequence');
+      await confirmPasswordReset(auth, token, password);
       setMsg('Security credentials updated. Redirecting to terminal...');
       setTimeout(() => navigate('/auth'), 2500);
     } catch (err: any) {
+      console.error('Password reset confirm error:', err);
       setError(err.message);
     } finally {
       setLoading(false);

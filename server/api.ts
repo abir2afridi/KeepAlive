@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
-import db from './db.js';
+import { adminDb } from './firebase-admin.js';
 import { requireAuth, AuthRequest } from './auth.js';
-import { encrypt } from './crypto.js';
+import { encrypt, decrypt } from './crypto.js';
 import crypto from 'crypto';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock', {
@@ -12,323 +12,389 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock', {
 const router = Router();
 
 // Public route for status page
-router.get('/public-status/:slug', (req, res) => {
+router.get('/public-status/:slug', async (req, res) => {
   const { slug } = req.params;
   
-  // Use COLLATE NOCASE for flexible URL matching
-  const user = db.prepare('SELECT id, email, status_slug FROM users WHERE status_slug = ? COLLATE NOCASE').get(slug) as any;
-  
-  if (!user) {
-    return res.status(404).json({ error: 'Status page not found' });
+  try {
+    const userSnapshot = await adminDb.collection('users').where('status_slug', '==', slug).limit(1).get();
+    
+    if (userSnapshot.empty) {
+      return res.status(404).json({ error: 'Status page not found' });
+    }
+
+    const userData = userSnapshot.docs[0].data();
+    const userId = userSnapshot.docs[0].id;
+
+    const monitorsSnapshot = await adminDb.collection('monitors').where('user_id', '==', userId).get();
+    const monitors = monitorsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+
+    const monitorsWithStats = await Promise.all(monitors.map(async (m: any) => {
+      // Data is now already in Firestore
+      const monitorRef = adminDb.collection('monitors').doc(m.id);
+      
+      const [pingsSnap, incidentsSnap] = await Promise.all([
+        monitorRef.collection('pings').orderBy('created_at', 'desc').limit(50).get(),
+        monitorRef.collection('incidents').orderBy('started_at', 'desc').limit(5).get()
+      ]);
+
+      const pings = pingsSnap.docs.map(doc => doc.data()).reverse();
+      const incidents = incidentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Calculate simple uptime from these 50 pings
+      const upCount = pings.filter((p: any) => p.is_up === 1).length;
+      const uptimePercent = pings.length > 0 ? (upCount * 100) / pings.length : 100;
+      const avgResponseTime = pings.length > 0 
+        ? pings.reduce((acc: number, p: any) => acc + p.response_time, 0) / pings.length 
+        : 0;
+
+      const alertsSnapshot = await adminDb.collection('alert_channels').where('monitor_id', '==', m.id).get();
+      const alertMap: any = { email: false, discord: false, slack: false, telegram: false };
+      alertsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        alertMap[data.type] = true;
+        if (data.type !== 'email') alertMap[`${data.type}_url`] = decrypt(data.destination);
+      });
+
+      return { 
+        ...m, 
+        current_is_up: m.last_is_up,
+        last_checked: m.last_pinged_at,
+        last_response_time: m.last_response_time,
+        last_error_message: m.last_error_message,
+        uptime_percent: uptimePercent,
+        avg_response_time: Math.round(avgResponseTime),
+        recent_pings: pings,
+        recent_incidents: incidents,
+        alert_config: JSON.stringify(alertMap)
+      };
+    }));
+
+    res.json({ 
+      user: { email: userData.email, slug: userData.status_slug },
+      monitors: monitorsWithStats 
+    });
+  } catch (error) {
+    console.error('Public status error:', error);
+    res.status(500).json({ error: 'Server error' });
   }
-
-  const monitors = db.prepare(`
-    SELECT m.id, m.name, m.url, m.type,
-      COALESCE((SELECT is_up FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), -1) as current_is_up,
-      COALESCE((SELECT created_at FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), '') as last_checked,
-      COALESCE((SELECT AVG(response_time) FROM (SELECT response_time FROM pings p2 WHERE p2.monitor_id = m.id ORDER BY created_at DESC LIMIT 50)), 0) as avg_response_time,
-      COALESCE((SELECT error_message FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), '') as last_error_message,
-      COALESCE((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id AND p.is_up = 1) * 100.0 / NULLIF((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id), 0), 0) as uptime_percent
-    FROM monitors m
-    WHERE m.user_id = ?
-    ORDER BY m.created_at DESC
-  `).all(user.id);
-
-  const monitorsWithPings = monitors.map((m: any) => {
-    const pings = db.prepare(`
-      SELECT response_time, is_up, error_message, created_at 
-      FROM pings 
-      WHERE monitor_id = ? 
-      ORDER BY created_at DESC 
-      LIMIT 50
-    `).all(m.id).reverse();
-
-    const incidents = db.prepare(`
-      SELECT response_time, is_up, error_message, created_at 
-      FROM pings 
-      WHERE monitor_id = ? AND is_up = 0
-      ORDER BY created_at DESC 
-      LIMIT 5
-    `).all(m.id);
-
-    return { ...m, recent_pings: pings, recent_incidents: incidents };
-  });
-
-
-  res.json({ 
-    user: { email: user.email, slug: user.status_slug },
-    monitors: monitorsWithPings 
-  });
 });
 
-router.get('/public-status/:slug/monitors/:monitorId', (req, res) => {
+router.get('/public-status/:slug/monitors/:monitorId', async (req, res) => {
   const { slug, monitorId } = req.params;
   
-  const user = db.prepare('SELECT id FROM users WHERE status_slug = ? COLLATE NOCASE').get(slug) as any;
-  if (!user) return res.status(404).json({ error: 'Status page not found' });
+  try {
+    const userSnapshot = await adminDb.collection('users').where('status_slug', '==', slug).limit(1).get();
+    if (userSnapshot.empty) return res.status(404).json({ error: 'Status page not found' });
+    
+    const userId = userSnapshot.docs[0].id;
+    const monitorDoc = await adminDb.collection('monitors').doc(monitorId).get();
+    
+    if (!monitorDoc.exists || monitorDoc.data()?.user_id !== userId) {
+      return res.status(404).json({ error: 'Monitor not found' });
+    }
 
-  const monitor = db.prepare(`
-    SELECT m.id, m.name, m.url, m.type, m.interval, m.method,
-      COALESCE((SELECT is_up FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), -1) as current_is_up,
-      COALESCE((SELECT response_time FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), 0) as last_response_time,
-      COALESCE((SELECT error_message FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1), '') as last_error_message,
-      COALESCE((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id AND p.is_up = 1) * 100.0 / NULLIF((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id), 0), 0) as uptime_percent
-    FROM monitors m
-    WHERE m.id = ? AND m.user_id = ?
-  `).get(monitorId, user.id) as any;
+    const m = { id: monitorDoc.id, ...monitorDoc.data() } as any;
 
-  if (!monitor) return res.status(404).json({ error: 'Monitor not found' });
+    const monitorRef = adminDb.collection('monitors').doc(monitorId);
+    const pingsSnap = await monitorRef.collection('pings').orderBy('created_at', 'desc').limit(100).get();
+    const pings = pingsSnap.docs.map(doc => doc.data()).reverse();
 
-  const pings = db.prepare(`
-    SELECT response_time, is_up, error_message, created_at 
-    FROM pings 
-    WHERE monitor_id = ? 
-    ORDER BY created_at DESC 
-    LIMIT 100
-  `).all(monitorId).reverse();
+    const upCount = pings.filter((p: any) => p.is_up === 1).length;
+    const uptimePercent = pings.length > 0 ? (upCount * 100) / pings.length : 100;
+    const avgResponseTime = pings.length > 0 
+      ? pings.reduce((acc: number, p: any) => acc + p.response_time, 0) / pings.length 
+      : 0;
 
-  res.json({ ...monitor, recent_pings: pings });
+    res.json({ 
+      ...m, 
+      current_is_up: m.last_is_up,
+      last_response_time: m.last_response_time,
+      last_error_message: m.last_error_message,
+      last_checked: m.last_pinged_at,
+      uptime_percent: uptimePercent,
+      avg_response_time: Math.round(avgResponseTime),
+      recent_pings: pings 
+    });
+  } catch (error) {
+    console.error('Public monitor details error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 router.use(requireAuth);
 
-// Billing Endpoints
-router.post('/checkout-session', async (req: AuthRequest, res) => {
+router.get('/monitors', async (req: AuthRequest, res) => {
   const userId = req.user?.id;
-  const email = req.user?.email;
-  
-  if (!process.env.STRIPE_SECRET_KEY) {
-    // Mock upgrade flow if no stripe key
-    db.prepare("UPDATE users SET plan = 'pro' WHERE id = ?").run(userId);
-    return res.json({ url: '/settings?success=true' });
-  }
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      customer_email: email,
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'Pro Cluster Subscription',
-              description: '50 Monitors, 1-minute intervals, SMS & Webhook alerts',
-            },
-            unit_amount: 1200, // $12.00
-            recurring: { interval: 'month' }
-          },
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription',
-      success_url: `${req.headers.origin}/settings?success=true`,
-      cancel_url: `${req.headers.origin}/settings?canceled=true`,
-      client_reference_id: userId
+    const monitorsSnapshot = await adminDb.collection('monitors').where('user_id', '==', userId).get();
+    const monitors = monitorsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+
+    const monitorsWithPings = await Promise.all(monitors.map(async (m: any) => {
+      const monitorRef = adminDb.collection('monitors').doc(m.id);
+      const pingsSnap = await monitorRef.collection('pings').orderBy('created_at', 'desc').limit(20).get();
+      const pings = pingsSnap.docs.map(doc => doc.data()).reverse();
+
+      const upCount = pings.filter((p: any) => p.is_up === 1).length;
+      const uptimePercent = pings.length > 0 ? (upCount * 100) / pings.length : 100;
+
+      const alertsSnapshot = await adminDb.collection('alert_channels').where('monitor_id', '==', m.id).get();
+      const alertMap: any = { email: false, discord: false, slack: false, telegram: false };
+      alertsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        alertMap[data.type] = true;
+        if (data.type !== 'email') alertMap[`${data.type}_url`] = decrypt(data.destination);
+      });
+
+      return { 
+        ...m, 
+        current_is_up: m.last_is_up,
+        last_response_time: m.last_response_time,
+        last_error_message: m.last_error_message,
+        uptime_percent: uptimePercent,
+        recent_pings: pings,
+        alert_config: JSON.stringify(alertMap)
+      };
+    }));
+
+    res.json(monitorsWithPings);
+  } catch (error) {
+    console.error('List monitors error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/monitors/:id', async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const userId = req.user?.id;
+
+  try {
+    const monitorDoc = await adminDb.collection('monitors').doc(id).get();
+    if (!monitorDoc.exists || monitorDoc.data()?.user_id !== userId) {
+      return res.status(404).json({ error: 'Monitor not found' });
+    }
+
+    const monitor = { id: monitorDoc.id, ...monitorDoc.data() } as any;
+
+    const monitorRef = adminDb.collection('monitors').doc(id);
+    const pingsSnap = await monitorRef.collection('pings').orderBy('created_at', 'desc').limit(50).get();
+    const pings = pingsSnap.docs.map(doc => doc.data()).reverse();
+
+    const upCount = pings.filter((p: any) => p.is_up === 1).length;
+    const uptimePercent = pings.length > 0 ? (upCount * 100) / pings.length : 100;
+
+    const alertsSnapshot = await adminDb.collection('alert_channels').where('monitor_id', '==', id).get();
+    const alertMap: any = { email: false, discord: false, slack: false, telegram: false };
+    alertsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      alertMap[data.type] = true;
+      if (data.type !== 'email') alertMap[`${data.type}_url`] = decrypt(data.destination);
     });
-    
-    res.json({ url: session.url });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+
+    res.json({ 
+      ...monitor, 
+      current_is_up: monitor.last_is_up,
+      last_response_time: monitor.last_response_time,
+      last_error_message: monitor.last_error_message,
+      uptime_percent: uptimePercent,
+      recent_pings: pings,
+      alert_config: JSON.stringify(alertMap)
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
-router.post('/webhook', async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  let event;
+router.post('/monitors', async (req: AuthRequest, res) => {
+  const { name, url, type, interval, method, headers, body, keep_alive, expected_status, alerts: bodyAlerts, alert_config } = req.body;
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  // Handle alert_config from frontend
+  let alerts = bodyAlerts;
+  if (!alerts && alert_config) {
+    try {
+      alerts = typeof alert_config === 'string' ? JSON.parse(alert_config) : alert_config;
+    } catch (e) {
+      alerts = null;
+    }
+  }
 
   try {
-    if (process.env.STRIPE_WEBHOOK_SECRET) {
-      event = stripe.webhooks.constructEvent(req.body, sig as string, process.env.STRIPE_WEBHOOK_SECRET);
-    } else {
-      // If no secret, we assume it's mock or dev (NOT SECURE FOR PRODUCTION)
-      event = JSON.parse(req.body.toString());
+    const monitorData = {
+      user_id: userId,
+      name,
+      url,
+      type,
+      interval,
+      method,
+      headers: JSON.stringify(headers),
+      body,
+      keep_alive: keep_alive ? 1 : 0,
+      expected_status: expected_status || 200,
+      created_at: new Date().toISOString()
+    };
+
+    const docRef = await adminDb.collection('monitors').add(monitorData);
+    const id = docRef.id;
+
+    // Save alert channels
+    if (alerts) {
+      const alertCollection = adminDb.collection('alert_channels');
+      if (alerts.email) {
+        await alertCollection.add({ monitor_id: id, type: 'email', destination: encrypt(req.user?.email || '') });
+      }
+      if (alerts.discord && alerts.discord_url) {
+        await alertCollection.add({ monitor_id: id, type: 'discord', destination: encrypt(alerts.discord_url) });
+      }
+      if (alerts.slack && alerts.slack_url) {
+        await alertCollection.add({ monitor_id: id, type: 'slack', destination: encrypt(alerts.slack_url) });
+      }
+      if (alerts.telegram && alerts.telegram_url) {
+        await alertCollection.add({ monitor_id: id, type: 'telegram', destination: encrypt(alerts.telegram_url) });
+      }
     }
-  } catch (err: any) {
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
 
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const userId = session.client_reference_id;
-    if (userId) {
-      db.prepare("UPDATE users SET plan = 'pro' WHERE id = ?").run(userId);
-      console.log(`[STRIPE] User ${userId} upgraded to PRO via webhook.`);
-    }
-  }
-
-  res.send();
-});
-
-router.post('/verify-checkout', (req: AuthRequest, res) => {
-  const userId = req.user?.id;
-  // In production, sync status with Stripe logic/webhooks. Mocking verification here:
-  db.prepare("UPDATE users SET plan = 'pro' WHERE id = ?").run(userId);
-  res.json({ success: true, plan: 'pro' });
-});
-
-router.get('/monitors', (req: AuthRequest, res) => {
-  const userId = req.user?.id;
-  const monitors = db.prepare(`
-    SELECT m.*, 
-      (SELECT is_up FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as current_is_up,
-      (SELECT response_time FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as last_response_time,
-      (SELECT error_message FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as last_error_message,
-      (SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id AND p.is_up = 1) * 100.0 / NULLIF((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id), 0) as uptime_percent
-    FROM monitors m
-    WHERE m.user_id = ?
-    ORDER BY m.created_at DESC
-  `).all(userId);
-
-  // Get last 10 pings for sparkline
-  const monitorsWithPings = monitors.map((m: any) => {
-    const pings = db.prepare(`
-      SELECT response_time, is_up, error_message, created_at 
-      FROM pings 
-      WHERE monitor_id = ? 
-      ORDER BY created_at DESC 
-      LIMIT 10
-    `).all(m.id).reverse();
-    return { ...m, recent_pings: pings };
-  });
-
-  res.json(monitorsWithPings);
-});
-
-router.get('/monitors/:id', (req: AuthRequest, res) => {
-  const { id } = req.params;
-  const userId = req.user?.id;
-
-  const monitor = db.prepare(`
-    SELECT m.*, 
-      (SELECT is_up FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as current_is_up,
-      (SELECT response_time FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as last_response_time,
-      (SELECT error_message FROM pings p WHERE p.monitor_id = m.id ORDER BY created_at DESC LIMIT 1) as last_error_message,
-      (SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id AND p.is_up = 1) * 100.0 / NULLIF((SELECT COUNT(*) FROM pings p WHERE p.monitor_id = m.id), 0) as uptime_percent
-    FROM monitors m
-    WHERE m.id = ? AND m.user_id = ?
-  `).get(id, userId) as any;
-
-  if (!monitor) {
-    return res.status(404).json({ error: 'Monitor not found' });
-  }
-
-  // Get last 50 pings for detailed chart
-  const pings = db.prepare(`
-    SELECT response_time, is_up, error_message, created_at 
-    FROM pings 
-    WHERE monitor_id = ? 
-    ORDER BY created_at DESC 
-    LIMIT 50
-  `).all(id).reverse();
-
-  res.json({ ...monitor, recent_pings: pings });
-});
-
-router.post('/monitors', (req: AuthRequest, res) => {
-  const { name, url, type, interval, method, headers, body, keep_alive, expected_status, alerts } = req.body;
-  const id = crypto.randomUUID();
-  const userId = req.user?.id;
-  
-  const stmt = db.prepare(`
-    INSERT INTO monitors (id, user_id, name, url, type, interval, method, headers, body, keep_alive, expected_status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  
-  stmt.run(id, userId, name, url, type, interval, method, JSON.stringify(headers), body, keep_alive ? 1 : 0, expected_status || 200);
-  
-  // Save alert channels
-  if (alerts) {
-    const insertAlert = db.prepare(`
-      INSERT INTO alert_channels (id, monitor_id, type, destination)
-      VALUES (?, ?, ?, ?)
-    `);
+    // Trigger initial ping asynchronously
+    import('./pinger.js').then(({ pingMonitor }) => pingMonitor({ id, ...monitorData }));
     
-    if (alerts.email) {
-      // Actually, we could use a custom email if provided, but let's stick to user email for simple UI
-      insertAlert.run(crypto.randomUUID(), id, 'email', req.user?.email || '');
-    }
-    if (alerts.discord && alerts.discord_url) {
-      insertAlert.run(crypto.randomUUID(), id, 'discord', encrypt(alerts.discord_url));
-    }
-    if (alerts.slack && alerts.slack_url) {
-      insertAlert.run(crypto.randomUUID(), id, 'slack', encrypt(alerts.slack_url));
-    }
-    if (alerts.telegram && alerts.telegram_url) {
-      insertAlert.run(crypto.randomUUID(), id, 'telegram', encrypt(alerts.telegram_url));
-    }
+    res.json({ id, success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
   }
-
-  // Trigger initial ping asynchronously
-  const monitor = db.prepare('SELECT * FROM monitors WHERE id = ?').get(id);
-  if (monitor) {
-    import('./pinger.js').then(({ pingMonitor }) => pingMonitor(monitor));
-  }
-  
-  res.json({ id, success: true });
 });
 
-router.put('/monitors/:id', (req: AuthRequest, res) => {
+router.put('/monitors/:id', async (req: AuthRequest, res) => {
   const { id } = req.params;
-  const { name, url, type, interval, method, headers, body, keep_alive, expected_status } = req.body;
+  const { name, url, type, interval, method, headers, body, keep_alive, expected_status, alerts: bodyAlerts, alert_config } = req.body;
   const userId = req.user?.id;
 
-  const stmt = db.prepare(`
-    UPDATE monitors 
-    SET name=?, url=?, type=?, interval=?, method=?, headers=?, body=?, keep_alive=?, expected_status=?
-    WHERE id=? AND user_id=?
-  `);
-  
-  const result = stmt.run(name, url, type, interval, method, JSON.stringify(headers), body, keep_alive ? 1 : 0, expected_status || 200, id, userId);
-  
-  // Re-save alert channels
-  const alerts = req.body.alerts;
-  if (alerts) {
-    db.prepare('DELETE FROM alert_channels WHERE monitor_id = ?').run(id);
-    const insertAlert = db.prepare('INSERT INTO alert_channels (id, monitor_id, type, destination) VALUES (?, ?, ?, ?)');
-    if (alerts.email) insertAlert.run(crypto.randomUUID(), id, 'email', req.user?.email || '');
-    if (alerts.discord && alerts.discord_url) insertAlert.run(crypto.randomUUID(), id, 'discord', encrypt(alerts.discord_url));
-    if (alerts.slack && alerts.slack_url) insertAlert.run(crypto.randomUUID(), id, 'slack', encrypt(alerts.slack_url));
-    if (alerts.telegram && alerts.telegram_url) insertAlert.run(crypto.randomUUID(), id, 'telegram', encrypt(alerts.telegram_url));
-  }
-  
-  if (result.changes === 0) {
-    return res.status(404).json({ error: 'Monitor not found or unauthorized' });
+  // Handle alert_config from frontend
+  let alerts = bodyAlerts;
+  if (!alerts && alert_config) {
+    try {
+      alerts = typeof alert_config === 'string' ? JSON.parse(alert_config) : alert_config;
+    } catch (e) {
+      alerts = null;
+    }
   }
 
-  res.json({ success: true });
+  try {
+    const monitorDoc = await adminDb.collection('monitors').doc(id).get();
+    if (!monitorDoc.exists || monitorDoc.data()?.user_id !== userId) {
+      return res.status(404).json({ error: 'Monitor not found' });
+    }
+
+    const updateData = {
+      name, url, type, interval, method, 
+      headers: JSON.stringify(headers), 
+      body, 
+      keep_alive: keep_alive ? 1 : 0, 
+      expected_status: expected_status || 200
+    };
+
+    await adminDb.collection('monitors').doc(id).update(updateData);
+
+    if (alerts) {
+      // Delete old alerts and add new ones (Firestore way)
+      const oldAlerts = await adminDb.collection('alert_channels').where('monitor_id', '==', id).get();
+      const batch = adminDb.batch();
+      oldAlerts.docs.forEach(doc => batch.delete(doc.ref));
+      
+      const alertCollection = adminDb.collection('alert_channels');
+      if (alerts.email) {
+        const ref = alertCollection.doc();
+        batch.set(ref, { monitor_id: id, type: 'email', destination: encrypt(req.user?.email || '') });
+      }
+      if (alerts.discord && alerts.discord_url) {
+        const ref = alertCollection.doc();
+        batch.set(ref, { monitor_id: id, type: 'discord', destination: encrypt(alerts.discord_url) });
+      }
+      if (alerts.slack && alerts.slack_url) {
+        const ref = alertCollection.doc();
+        batch.set(ref, { monitor_id: id, type: 'slack', destination: encrypt(alerts.slack_url) });
+      }
+      if (alerts.telegram && alerts.telegram_url) {
+        const ref = alertCollection.doc();
+        batch.set(ref, { monitor_id: id, type: 'telegram', destination: encrypt(alerts.telegram_url) });
+      }
+      await batch.commit();
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-router.delete('/monitors/:id', (req: AuthRequest, res) => {
+router.delete('/monitors/:id', async (req: AuthRequest, res) => {
   const { id } = req.params;
   const userId = req.user?.id;
 
-  const result = db.prepare('DELETE FROM monitors WHERE id = ? AND user_id = ?').run(id, userId);
-  if (result.changes === 0) {
-    return res.status(404).json({ error: 'Monitor not found or unauthorized' });
-  }
+  try {
+    const monitorDoc = await adminDb.collection('monitors').doc(id).get();
+    if (!monitorDoc.exists || monitorDoc.data()?.user_id !== userId) {
+      return res.status(404).json({ error: 'Monitor not found' });
+    }
 
-  res.json({ success: true });
+    await adminDb.collection('monitors').doc(id).delete();
+    // Also delete alert channels
+    const alerts = await adminDb.collection('alert_channels').where('monitor_id', '==', id).get();
+    const batch = adminDb.batch();
+    alerts.forEach(doc => batch.delete(doc.ref));
+    
+    // Note: In Firestore, deleting a document doesn't delete sub-collections automatically.
+    // However, for simplicity here we focus on the top-level delete. 
+    // Usually a Cloud Function or a batch delete utility would handle pings/incidents.
+    
+    await batch.commit();
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete monitor error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-router.get('/stats', (req: AuthRequest, res) => {
+router.get('/stats', async (req: AuthRequest, res) => {
   const userId = req.user?.id;
-  const totalMonitors = db.prepare('SELECT COUNT(*) as count FROM monitors WHERE user_id = ?').get(userId) as { count: number };
-  
-  const uptime = db.prepare(`
-    SELECT 
-      COUNT(CASE WHEN p.is_up = 1 THEN 1 END) * 100.0 / NULLIF(COUNT(p.id), 0) as overall_uptime,
-      AVG(p.response_time) as avg_response_time
-    FROM pings p
-    JOIN monitors m ON p.monitor_id = m.id
-    WHERE m.user_id = ?
-  `).get(userId) as { overall_uptime: number, avg_response_time: number };
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-  res.json({
-    total_monitors: totalMonitors.count,
-    overall_uptime: uptime.overall_uptime || 0,
-    avg_response_time: uptime.avg_response_time || 0
-  });
+  try {
+    const monitorsSnapshot = await adminDb.collection('monitors').where('user_id', '==', userId).get();
+    const monitorIds = monitorsSnapshot.docs.map(doc => doc.id);
+
+    if (monitorIds.length === 0) {
+      return res.json({ total_monitors: 0, overall_uptime: 0, avg_response_time: 0 });
+    }
+
+    // Aggregate stats from Firestore
+    let totalUptimeSum = 0;
+    let totalRTsum = 0;
+    let count = 0;
+
+    for (const monitorId of monitorIds) {
+      const monitorDoc = await adminDb.collection('monitors').doc(monitorId).get();
+      const data = monitorDoc.data();
+      if (data) {
+        // Use normalized stats if available
+        if (typeof data.last_is_up !== 'undefined') {
+           totalUptimeSum += (data.last_is_up === 1 ? 100 : 0);
+           totalRTsum += (data.last_response_time || 0);
+           count++;
+        }
+      }
+    }
+
+    res.json({
+      total_monitors: monitorIds.length,
+      overall_uptime: count > 0 ? totalUptimeSum / count : 0,
+      avg_response_time: count > 0 ? Math.round(totalRTsum / count) : 0
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 export default router;

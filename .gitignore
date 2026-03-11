@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+serviceAccount.json
+curl_out.txt
+api_check.json
+ts_errors.txt
+fix_*.js
+fix_*.cjs
+!index.html

@@ -142,7 +142,7 @@ export default function Dashboard() {
         <div className="lg:col-span-2 space-y-8">
            <div className="flex items-center justify-between px-1">
               <h3 className="text-xs font-bold text-ink uppercase tracking-[0.3em] italic">Telemetry Stream</h3>
-              <Link to="/monitors" className="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline flex items-center gap-1.5 transition-all">
+              <Link to="/app/monitors" className="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline flex items-center gap-1.5 transition-all">
                  Registry <ArrowUpRight className="size-3" />
               </Link>
            </div>

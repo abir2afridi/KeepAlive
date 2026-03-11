@@ -15,6 +15,7 @@ export default function Settings() {
   const [msg, setMsg] = useState('');
   
   const [statusSlug, setStatusSlug] = useState(user.status_slug || '');
+  const [name, setName] = useState(user.name || '');
   const [password, setPassword] = useState('');
 
   useEffect(() => {
@@ -71,12 +72,12 @@ export default function Settings() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json' 
         },
-        body: JSON.stringify({ status_slug: statusSlug, password: password || undefined })
+        body: JSON.stringify({ status_slug: statusSlug, name, password: password || undefined })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Profile update failed');
       
-      const updatedUser = { ...user, status_slug: statusSlug };
+      const updatedUser = { ...user, status_slug: statusSlug, name };
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
       setPassword('');
@@ -162,6 +163,20 @@ export default function Settings() {
                     <div>
                        <h4 className="text-lg font-bold text-ink uppercase tracking-tight italic">{user.name || 'Anonymous User'}</h4>
                        <p className="text-[10px] font-mono text-ink/60 uppercase tracking-widest">{user.email}</p>
+                    </div>
+                 </div>
+
+                 <div className="space-y-2">
+                    <label className="text-[9px] font-bold text-ink/60 uppercase tracking-widest ml-1">Display Name</label>
+                    <div className="relative group">
+                       <input 
+                         type="text" 
+                         value={name}
+                         onChange={(e) => setName(e.target.value)}
+                         className="w-full bg-panel border border-line/40 rounded-xl px-5 py-3 text-[11px] font-bold text-ink focus:outline-none focus:border-primary/50 transition-all font-mono uppercase tracking-widest p-4 whitespace-nowrap overflow-hidden transition-all duration-300"
+                         placeholder="Your Display Name"
+                       />
+                       <User className="absolute right-4 top-1/2 -translate-y-1/2 size-3.5 text-ink/20 group-focus-within:text-primary transition-colors" />
                     </div>
                  </div>
 

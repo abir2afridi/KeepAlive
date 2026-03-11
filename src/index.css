@@ -25,6 +25,30 @@
   --color-slate-800: #1e293b;
   --color-slate-900: #0f172a;
   --color-slate-950: #020617;
+
+  /* Imported from DNS Tool */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-sidebar-dashboard: hsl(var(--sidebar-dashboard));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 }
 
 :root {
@@ -64,3 +88,150 @@ body {
   @apply bg-slate-400 dark:bg-slate-700;
 }
 
+
+
+@layer base {
+  :root {
+    --background: 47 27% 94%;
+    /* #f3f1ea */
+    --foreground: 224 71.4% 4.1%;
+    --sidebar-dashboard: 255 22% 52%;
+    /* #786aa1 */
+    --card: 0 0% 100%;
+    --card-foreground: 224 71.4% 4.1%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71.4% 4.1%;
+    --primary: 253 80% 18%;
+    /* Dark blue for primary matches sidebar theme */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 47 10% 90%;
+    --secondary-foreground: 222.2 47.1% 11.2%;
+    --muted: 47 10% 90%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 47 10% 92%;
+    --accent-foreground: 222.2 47.1% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 47 10% 88%;
+    --input: 47 10% 88%;
+    --ring: 253 80% 24%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 253 80% 15%;
+    --foreground: 210 40% 98%;
+    --sidebar-dashboard: 240 45% 7%;
+    --card: 253 80% 18%;
+    --card-foreground: 210 40% 98%;
+    --popover: 253 80% 15%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.1% 11.2%;
+    --secondary: 253 80% 20%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 253 80% 20%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 253 80% 22%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 253 80% 25%;
+    --input: 253 80% 25%;
+    --ring: 224.3 76.3% 48%;
+  }
+}
+
+[data-theme-transition="true"] * {
+  transition: none !important;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+}
+
+@layer components {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-border/40 rounded-full;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary/20;
+  }
+}
+
+/* Minimalist Utilities */
+.text-balance {
+  text-wrap: balance;
+}
+
+@keyframes pulse-subtle {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.8;
+    transform: scale(0.99);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-subtle 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-spin-slow {
+  animation: spin 6s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Leaflet Theming */
+.leaflet-tile-pane {
+  filter: grayscale(1) invert(0);
+  transition: filter 0.5s ease;
+}
+
+.dark .leaflet-tile-pane {
+  filter: grayscale(1) invert(1) brightness(0.7) contrast(1.2);
+}
+
+.leaflet-container {
+  background: transparent !important;
+}
+
+@keyframes scan {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(100vh); }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}

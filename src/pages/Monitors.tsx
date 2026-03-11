@@ -113,7 +113,7 @@ export default function Monitors() {
           <h2 className="text-xs font-bold text-ink/60 uppercase tracking-[0.3em] italic">Telemetry Matrix</h2>
           <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-black rounded-full tracking-widest uppercase">{monitors.length} Nodes</span>
         </div>
-        <Link to="/monitors/new" className="px-5 py-2.5 bg-primary text-white rounded-xl font-bold text-[11px] uppercase tracking-widest hover:translate-y-[-1px] transition-all shadow-lg shadow-primary/20 flex items-center gap-2 italic">
+        <Link to="/app/monitors/new" className="px-5 py-2.5 bg-primary text-white rounded-xl font-bold text-[11px] uppercase tracking-widest hover:translate-y-[-1px] transition-all shadow-lg shadow-primary/20 flex items-center gap-2 italic">
           <PlusCircle className="size-3" /> Provision Node
         </Link>
       </div>
@@ -155,7 +155,7 @@ export default function Monitors() {
               {filteredMonitors.map(monitor => (
                 <tr 
                   key={monitor.id} 
-                  onClick={() => navigate(`/monitors/${monitor.id}`)}
+                  onClick={() => navigate(`/app/monitors/${monitor.id}`)}
                   className="hover:bg-primary/[0.02] transition-all group cursor-pointer"
                 >
                   <td className="px-8 py-8">

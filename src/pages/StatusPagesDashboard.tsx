@@ -141,7 +141,7 @@ export default function StatusPagesDashboard() {
       <div className="flex flex-col lg:flex-row items-start justify-between gap-10 pb-10 border-b border-line dark:border-white/5">
         <div className="flex-1 space-y-6">
           <nav className="flex items-center gap-3 text-[9px] font-bold uppercase tracking-widest text-ink/70">
-            <Link to="/dashboard" className="hover:text-primary transition-colors flex items-center gap-2">
+            <Link to="/app/dashboard" className="hover:text-primary transition-colors flex items-center gap-2">
               <LayoutDashboard className="size-3" /> INFRASTRUCTURE
             </Link>
             <ChevronRight className="size-3 opacity-30" />
@@ -221,7 +221,7 @@ export default function StatusPagesDashboard() {
               Initialize your telemetry broadcast identifier to begin streaming metrics to the global edge.
             </p>
           </div>
-          <Link to="/settings" className="px-10 py-4 bg-slate-900 dark:bg-primary text-white rounded-2xl font-bold uppercase tracking-widest hover:translate-y-[-1px] transition-all inline-block italic text-[10px]">
+          <Link to="/app/settings" className="px-10 py-4 bg-slate-900 dark:bg-primary text-white rounded-2xl font-bold uppercase tracking-widest hover:translate-y-[-1px] transition-all inline-block italic text-[10px]">
             Initialize Hub
           </Link>
         </div>
@@ -483,7 +483,7 @@ export default function StatusPagesDashboard() {
                 </div>
 
                 {/* Settings Link */}
-                <Link to="/settings" className="block p-6 rounded-3xl bg-base dark:bg-panel/5 border border-line dark:border-white/5 hover:bg-base transition-all group">
+                <Link to="/app/settings" className="block p-6 rounded-3xl bg-base dark:bg-panel/5 border border-line dark:border-white/5 hover:bg-base transition-all group">
                    <div className="flex items-center justify-between">
                       <div className="space-y-1">
                          <span className="text-[10px] font-bold text-ink  uppercase italic">Visibility</span>

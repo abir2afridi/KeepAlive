@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../components/Layout';
 import ThemeToggle from '../components/ThemeToggle';
+import { AnalogMeter } from '../components/ui/AnalogMeter';
 
 interface Ping {
   response_time: number;
@@ -189,20 +190,42 @@ export default function PublicMonitorDetails() {
           
           <div className="lg:col-span-2 space-y-12">
             <div className="bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/5 rounded-[40px] p-8 md:p-12 space-y-10 relative overflow-hidden shadow-sm">
-               <div className="flex items-center justify-between relative z-10">
-                 <div className="space-y-1">
-                    <h3 className="text-[10px] font-bold text-ink/70 uppercase tracking-[0.3em] italic">Response Velocity</h3>
-                    <p className="text-5xl font-black tracking-tighter text-ink  tabular-nums italic">
-                      {monitor.last_response_time.toFixed(0)}<span className="text-xl text-primary ml-1">ms</span>
-                    </p>
-                 </div>
-                 <div className="text-right">
-                    <div className="flex items-center gap-2 justify-end mb-2">
-                      <span className="text-[9px] font-bold text-primary uppercase tracking-widest italic flex items-center gap-2">
-                        <span className="size-1.5 rounded-full bg-primary animate-pulse shadow-sm shadow-primary/50" /> Live Stream
-                      </span>
+               <div className="flex flex-col md:flex-row md:items-center justify-between gap-10 relative z-10">
+                 <div className="flex items-center gap-8">
+                    <div className="w-32">
+                      <AnalogMeter 
+                        value={monitor.last_response_time} 
+                        max={1000} 
+                        label="Latency" 
+                        unit="ms" 
+                        colorClass={monitor.last_response_time < 200 ? "text-emerald-500" : monitor.last_response_time < 500 ? "text-amber-500" : "text-rose-500"}
+                      />
                     </div>
-                    <span className="text-[8px] font-bold text-ink/70 uppercase tracking-widest italic">30 Cycle Loop</span>
+                    <div className="space-y-1">
+                       <h3 className="text-[10px] font-bold text-ink/70 uppercase tracking-[0.3em] italic">Response Velocity</h3>
+                       <p className="text-5xl font-black tracking-tighter text-ink  tabular-nums italic">
+                         {monitor.last_response_time.toFixed(0)}<span className="text-xl text-primary ml-1">ms</span>
+                       </p>
+                    </div>
+                 </div>
+                 
+                 <div className="flex items-center gap-8">
+                    <div className="w-32">
+                      <AnalogMeter 
+                        value={monitor.uptime_percent} 
+                        label="Stability" 
+                        unit="%" 
+                        colorClass={monitor.uptime_percent > 99 ? "text-emerald-500" : monitor.uptime_percent > 95 ? "text-amber-500" : "text-rose-500"}
+                      />
+                    </div>
+                    <div className="text-right">
+                       <div className="flex items-center gap-2 justify-end mb-2">
+                         <span className="text-[9px] font-bold text-primary uppercase tracking-widest italic flex items-center gap-2">
+                           <span className="size-1.5 rounded-full bg-primary animate-pulse shadow-sm shadow-primary/50" /> Live Stream
+                         </span>
+                       </div>
+                       <span className="text-[8px] font-bold text-ink/70 uppercase tracking-widest italic">30 Cycle Loop</span>
+                    </div>
                  </div>
                </div>
 
@@ -210,11 +233,12 @@ export default function PublicMonitorDetails() {
                  <LatencyChart data={monitor.recent_pings} color={isUp ? "#10b981" : "#f43f5e"} />
                </div>
 
-               <div className="grid grid-cols-3 gap-8 pt-10 border-t border-line dark:border-white/5 relative z-10">
+               <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 pt-10 border-t border-line dark:border-white/5 relative z-10">
                  {[
                    { label: 'Uptime Score', value: `${monitor.uptime_percent.toFixed(2)}%` },
                    { label: 'Method', value: monitor.method.toUpperCase() },
-                   { label: 'Cluster', value: 'Global Hub' }
+                   { label: 'Cluster', value: 'Global Hub' },
+                   { label: 'Last Check', value: monitor.recent_pings.length > 0 ? new Date(monitor.recent_pings[monitor.recent_pings.length-1].created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A' }
                  ].map((stat, i) => (
                    <div key={i} className="space-y-1.5">
                      <span className="block text-[8px] font-bold text-ink/70 uppercase tracking-[0.2em] italic">{stat.label}</span>

@@ -1,6 +1,10 @@
 import crypto from 'crypto';
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-fallback-key-32-chars-long!!'; // Must be 32 bytes
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+
+if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
+  throw new Error('ENCRYPTION_KEY environment variable must be at least 32 characters long.');
+}
 const IV_LENGTH = 16;
 
 export function encrypt(text: string): string {

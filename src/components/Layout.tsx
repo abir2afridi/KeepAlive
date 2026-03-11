@@ -13,7 +13,16 @@ import {
   LogOut,
   ChevronRight,
   ShieldCheck,
-  Command
+  Command,
+  User,
+  ActivitySquare,
+  MapPin,
+  Shield,
+  Database,
+  UserCircle,
+  MessageSquare,
+  BookOpen,
+  Network
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -36,19 +45,38 @@ export default function Layout() {
   };
 
   const navItems = [
-    { icon: LayoutGrid, label: 'DASHBOARD', path: '/dashboard' },
-    { icon: Activity, label: 'MONITORS', path: '/monitors' },
-    { icon: BellRing, label: 'ALERTS', path: '/alerts' },
-    { icon: Globe, label: 'STATUS', path: '/status' },
+    { icon: LayoutGrid, label: 'DASHBOARD', path: '/app/dashboard' },
+    { icon: Activity, label: 'MONITORS', path: '/app/monitors' },
+    { icon: BellRing, label: 'ALERTS', path: '/app/alerts' },
+    { icon: Globe, label: 'STATUS', path: '/app/status' },
+    { 
+      icon: ActivitySquare, 
+      label: 'DNS BENCHMARK', 
+      path: '/app/dns-benchmark?tab=grid',
+      children: [
+        { icon: MapPin, label: 'GEO CLUSTERS', path: '/app/dns-benchmark?tab=map' },
+        { icon: Shield, label: 'SECURITY', path: '/app/dns-benchmark?tab=leaderboard' },
+        { icon: Database, label: 'DATA LAB', path: '/app/dns-benchmark?tab=charts' },
+        { icon: UserCircle, label: 'PROFILE', path: '/app/dns-benchmark?tab=profile' },
+      ]
+    },
+  ];
+
+  const supportItems = [
+    { icon: BookOpen, label: 'MANIFESTO', path: '/app/manifesto' },
+    { icon: MessageSquare, label: 'DIRECT LINE', path: '/app/direct-line' },
   ];
 
   const pageTitles: Record<string, string> = {
-    '/dashboard': 'DASHBOARD',
-    '/monitors': 'MONITOR SYSTEM',
-    '/monitors/new': 'PROVISION NODE',
-    '/alerts': 'ALERT CHANNELS',
-    '/status': 'STATUS PAGES',
-    '/settings': 'ACCOUNT SETTINGS',
+    '/app/dashboard': 'DASHBOARD',
+    '/app/monitors': 'MONITOR SYSTEM',
+    '/app/monitors/new': 'PROVISION NODE',
+    '/app/alerts': 'ALERT CHANNELS',
+    '/app/status': 'STATUS PAGES',
+    '/app/dns-benchmark': 'DNS BENCHMARK',
+    '/app/manifesto': 'MANIFESTO',
+    '/app/direct-line': 'DIRECT LINE',
+    '/app/settings': 'ACCOUNT SETTINGS',
   };
 
   const currentPath = location.pathname;
@@ -60,14 +88,14 @@ export default function Layout() {
       {/* Refined Sidebar */}
       <aside className="w-72 flex-shrink-0 border-r border-line bg-panel backdrop-blur-2xl flex flex-col relative z-20 shadow-xl transition-all duration-500 overflow-hidden">
         
-        {/* Branding Area */}
+         {/* Branding Area */}
          <div className="p-8 pb-6 flex items-center gap-4">
-           <div className="size-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
-              <Zap className="size-5 fill-white" />
+           <div className="size-10 rounded-xl bg-white flex items-center justify-center text-black shadow-lg shadow-white/5">
+              <Network className="size-5 font-black" />
            </div>
            <div>
-              <h1 className="text-xl font-extrabold tracking-tight text-ink uppercase italic leading-none">Keep<span className="text-primary">Alive</span></h1>
-              <p className="text-[10px] text-ink/40 font-bold tracking-[0.3em] uppercase mt-1">v4.0 Protocol</p>
+              <h1 className="text-xl font-black tracking-[0.1em] text-white uppercase italic leading-none">Net<span className="text-white/40">pulse</span></h1>
+              <p className="text-[10px] text-white/20 font-bold tracking-[0.4em] uppercase mt-1">Intelligence</p>
            </div>
         </div>
 
@@ -77,7 +105,81 @@ export default function Layout() {
             <p className="px-3 text-[11px] uppercase tracking-[0.3em] font-bold text-ink/30 italic">Registry</p>
             <div className="space-y-1.5">
               {navItems.map((item) => {
-                const isActive = location.pathname.startsWith(item.path);
+                const isParentActive = location.pathname.startsWith(item.path.split('?')[0]);
+                const isActive = (() => {
+                  if (item.path.includes('?')) {
+                    const [path, search] = item.path.split('?');
+                    if (location.pathname === path && location.search === '' && item.path.includes('tab=grid')) {
+                      return true;
+                    }
+                    return location.pathname === path && location.search.includes(search);
+                  }
+                  return location.pathname.startsWith(item.path);
+                })();
+                
+                return (
+                  <div key={item.path} className="space-y-1">
+                    <Link
+                      to={item.path}
+                      className={cn(
+                        "flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 group relative",
+                        isActive 
+                          ? "text-primary bg-primary/5 border border-primary/10 shadow-sm" 
+                          : "text-ink/50 hover:text-ink hover:bg-base border border-transparent"
+                      )}
+                    >
+                      <div className="flex items-center gap-3 relative z-10">
+                        <item.icon className={cn("size-5 transition-transform", isActive && "text-primary")} />
+                        <span className="text-xs font-bold tracking-widest italic">{item.label}</span>
+                      </div>
+                      {isActive ? (
+                        <div className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_#5551FF]" />
+                      ) : (
+                        <ChevronRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0" />
+                      )}
+                    </Link>
+                    
+                    {/* Render sub-features if present and parent route is active */}
+                    {item.children && isParentActive && (
+                      <div className="pl-12 pr-4 pt-1 pb-2 space-y-2 relative">
+                        <div className="absolute left-[31px] top-0 bottom-3 w-[1px] bg-line/60" />
+                        {item.children.map((child) => {
+                          const isChildActive = location.search.includes(child.path.split('?')[1]);
+                          return (
+                            <Link
+                              key={child.path}
+                              to={child.path}
+                              className={cn(
+                                "flex items-center gap-3 py-2 transition-all duration-300 group relative",
+                                isChildActive ? "text-primary" : "text-ink/50 hover:text-ink hover:translate-x-1"
+                              )}
+                            >
+                              <div className="absolute -left-[18px] top-1/2 -translate-y-1/2 w-4 h-[1px] bg-line/60" />
+                              <child.icon className={cn("size-3.5 transition-transform", isChildActive && "text-primary")} />
+                              <span className="text-[10px] font-bold tracking-widest italic">{child.label}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-6 border-t border-line/50">
+            <p className="px-3 text-[11px] uppercase tracking-[0.3em] font-bold text-ink/30 italic">About & Support</p>
+            <div className="space-y-1.5">
+              {supportItems.map((item) => {
+                const isActive = (() => {
+                  if (item.path.includes('?')) {
+                    const [path, search] = item.path.split('?');
+                    return location.pathname === path && location.search.includes(search);
+                  }
+                  return location.pathname.startsWith(item.path);
+                })();
+                
                 return (
                   <Link
                     key={item.path}
@@ -108,17 +210,17 @@ export default function Layout() {
             <p className="px-3 text-[11px] uppercase tracking-[0.3em] font-bold text-ink/30 italic">Systems</p>
             <div className="space-y-1.5">
               <Link
-                to="/settings"
+                to="/app/settings"
                 className={cn(
                   "flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 group border border-transparent",
-                  location.pathname === '/settings' 
+                  location.pathname === '/app/settings' 
                     ? "text-primary bg-primary/5 border-primary/10" 
                     : "text-ink/50 hover:text-ink hover:bg-base"
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <Settings className="size-4.5 group-hover:rotate-90 transition-transform duration-500" />
-                  <span className="text-[10px] font-bold tracking-widest italic uppercase">Settings</span>
+                  <User className="size-4.5 group-hover:scale-110 transition-transform duration-500" />
+                  <span className="text-[10px] font-bold tracking-widest italic uppercase">Account</span>
                 </div>
                 <ChevronRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-all" />
               </Link>
@@ -146,8 +248,11 @@ export default function Layout() {
           
           <div className="flex items-center gap-6">
              <div className="flex flex-col">
-                <h2 className="text-base font-bold tracking-tighter text-ink italic uppercase leading-none">{currentTitle}</h2>
-                <span className="text-[10px] font-bold text-primary uppercase tracking-widest italic mt-1.5">SECURED REGISTRY</span>
+                <h2 className="text-lg font-black tracking-[-0.05em] text-white italic uppercase leading-none">{currentTitle}</h2>
+                <div className="flex items-center gap-2 mt-2">
+                   <div className="size-1.5 bg-[#5551FF] animate-pulse" />
+                   <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.3em]">Sector Active</span>
+                </div>
              </div>
           </div>
 
@@ -179,7 +284,7 @@ export default function Layout() {
             
             <div className="flex items-center gap-4 pl-4 cursor-pointer group select-none border-l border-line/50">
               <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold text-ink uppercase tracking-tight truncate max-w-[120px] italic">{user.email?.split('@')[0] || 'ADMIN'}</p>
+                <p className="text-xs font-bold text-ink uppercase tracking-tight truncate max-w-[120px] italic">{user.name || user.email?.split('@')[0] || 'ADMIN'}</p>
                 <p className="text-[10px] text-ink/40 font-bold uppercase tracking-widest italic">{user.plan || 'CORE'} TIER</p>
               </div>
               <div className="size-10 rounded-xl overflow-hidden border border-line group-hover:border-primary/50 transition-all">
@@ -190,13 +295,22 @@ export default function Layout() {
         </header>
 
         {/* Dynamic Canvas Background */}
-        <div className="absolute inset-0 pointer-events-none -z-10 opacity-50">
-           <div className="absolute top-0 right-0 w-[30%] h-[30%] bg-primary/5 rounded-full blur-[100px]" />
-           <div className="absolute bottom-0 left-0 w-[20%] h-[20%] bg-blue-500/5 rounded-full blur-[100px]" />
+        <div className="absolute inset-0 pointer-events-none -z-10 bg-black">
+           {/* Global Ambience */}
+           <div className="absolute top-0 right-0 w-[40%] h-[40%] bg-[#5551FF]/5 rounded-full blur-[120px] opacity-50" />
+           
+           {/* DNS Benchmark Specialized Background */}
+           {location.pathname.includes('dns-benchmark') && (
+              <div className="absolute inset-0 opacity-20">
+                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px]" />
+                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:200px_200px]" />
+                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-t from-transparent via-[#5551FF]/20 to-transparent animate-[scan_4s_linear_infinite]" />
+              </div>
+           )}
         </div>
 
         {/* Global Page Processor */}
-        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+        <div className={`flex-1 overflow-y-auto custom-scrollbar ${location.pathname.startsWith('/app/dns-benchmark') ? '' : 'p-8'}`}>
           <Outlet />
         </div>
       </main>

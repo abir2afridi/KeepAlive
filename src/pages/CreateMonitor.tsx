@@ -131,7 +131,7 @@ export default function CreateMonitor() {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Failed to save configuration');
-      navigate('/monitors');
+      navigate('/app/monitors');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -161,7 +161,7 @@ export default function CreateMonitor() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-10 border-b border-line">
         <div className="space-y-4">
           <nav className="flex items-center gap-3 text-[9px] font-bold text-ink/60 uppercase tracking-widest">
-            <Link to="/monitors" className="hover:text-primary transition-colors flex items-center gap-1.5 italic">
+            <Link to="/app/monitors" className="hover:text-primary transition-colors flex items-center gap-1.5 italic">
                <ArrowLeft className="size-3" /> Monitors
             </Link> 
             <span className="opacity-30">/</span>

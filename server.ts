@@ -1,7 +1,7 @@
+import 'dotenv/config';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import rateLimit from 'express-rate-limit';
-import db from './server/db.js';
 import { startPinger } from './server/pinger.js';
 import apiRoutes from './server/api.js';
 import authRoutes from './server/auth.js';

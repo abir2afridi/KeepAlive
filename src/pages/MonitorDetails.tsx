@@ -139,7 +139,7 @@ export default function MonitorDetails() {
         <h2 className="text-2xl font-bold text-ink  uppercase tracking-tight italic">Node Missing</h2>
         <p className="text-ink/60 dark:text-ink/70 font-medium text-[11px] italic leading-relaxed">{error || 'Registry entry not found.'}</p>
       </div>
-      <button onClick={() => navigate('/monitors')} className="px-8 py-3 bg-slate-900 dark:bg-panel text-white dark:text-ink rounded-xl font-bold text-[10px] uppercase tracking-widest hover:translate-y-[-1px] transition-all shadow-lg italic">
+      <button onClick={() => navigate('/app/monitors')} className="px-8 py-3 bg-slate-900 dark:bg-panel text-white dark:text-ink rounded-xl font-bold text-[10px] uppercase tracking-widest hover:translate-y-[-1px] transition-all shadow-lg italic">
         Back to Registry
       </button>
     </div>
@@ -152,7 +152,7 @@ export default function MonitorDetails() {
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 pb-10 border-b border-line dark:border-white/5">
         <div className="space-y-4 flex-1">
           <nav className="flex items-center gap-3 text-[9px] font-bold text-ink/70 uppercase tracking-widest">
-            <Link to="/monitors" className="hover:text-primary transition-colors flex items-center gap-1.5 italic">
+            <Link to="/app/monitors" className="hover:text-primary transition-colors flex items-center gap-1.5 italic">
               <ArrowLeft className="size-3" /> Registry
             </Link>
             <span className="opacity-30">/</span>
