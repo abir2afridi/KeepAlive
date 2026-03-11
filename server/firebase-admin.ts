@@ -8,7 +8,20 @@ const serviceAccountPath = join(process.cwd(), 'serviceAccount.json');
 
 if (!admin.apps.length) {
   try {
-    if (existsSync(serviceAccountPath)) {
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+    if (clientEmail && privateKey) {
+      console.log('Initializing Firebase Admin with Environment Variables...');
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: projectId,
+          clientEmail: clientEmail,
+          privateKey: privateKey.replace(/\\n/g, '\n'),
+        }),
+        projectId: projectId
+      });
+    } else if (existsSync(serviceAccountPath)) {
       console.log('Initializing Firebase Admin with serviceAccount.json...');
       const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
       admin.initializeApp({
