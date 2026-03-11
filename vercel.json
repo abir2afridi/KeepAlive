@@ -13,11 +13,5 @@
       "source": "/(.*)",
       "destination": "/"
     }
-  ],
-  "functions": {
-    "server.ts": {
-      "runtime": "vercel-node@latest",
-      "includeFiles": ["server/**", "serviceAccount.json"]
-    }
-  }
+  ]
 }
