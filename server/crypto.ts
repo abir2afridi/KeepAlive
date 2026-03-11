@@ -1,13 +1,19 @@
 import crypto from 'crypto';
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+import 'dotenv/config';
 
-if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
-  throw new Error('ENCRYPTION_KEY environment variable must be at least 32 characters long.');
+function getEncryptionKey() {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key || key.length < 32) {
+    throw new Error('ENCRYPTION_KEY environment variable must be at least 32 characters long.');
+  }
+  return key;
 }
+
 const IV_LENGTH = 16;
 
 export function encrypt(text: string): string {
+  const ENCRYPTION_KEY = getEncryptionKey();
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY.slice(0, 32)), iv);
   let encrypted = cipher.update(text);
@@ -17,6 +23,7 @@ export function encrypt(text: string): string {
 
 export function decrypt(text: string): string {
   try {
+    const ENCRYPTION_KEY = getEncryptionKey();
     const textParts = text.split(':');
     const iv = Buffer.from(textParts.shift()!, 'hex');
     const encryptedText = Buffer.from(textParts.join(':'), 'hex');
