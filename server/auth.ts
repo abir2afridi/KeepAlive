@@ -21,18 +21,23 @@ const jwks = createRemoteJWKSet(jwksUrl);
 export const requireAuth = async (req: AuthRequest, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split(' ')[1];
   
+  console.log('[AUTH] Checking token:', token ? `${token.slice(0, 20)}...` : 'missing');
+  
   if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    console.log('[AUTH] No token provided');
+    return res.status(401).json({ error: 'Unauthorized - No token' });
   }
 
   // Check cache first — avoids Firebase Admin calls on every request
   const cached = await redisCache.getAuthUser(token);
   if (cached) {
+    console.log('[AUTH] Found cached user:', cached.email);
     req.user = cached;
     return next();
   }
 
   try {
+    console.log('[AUTH] Verifying JWT token...');
     const { payload } = await jwtVerify(token, jwks, {
       issuer: `${supabaseUrl}/auth/v1`,
       audience: 'authenticated',
@@ -42,8 +47,11 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
     const userId = String(payload.sub || '');
     const email = typeof payload.email === 'string' ? payload.email : '';
 
+    console.log('[AUTH] Token verified for user:', email, 'ID:', userId);
+
     if (!userId) {
-      return res.status(401).json({ error: 'Invalid token' });
+      console.log('[AUTH] Invalid token - no user ID');
+      return res.status(401).json({ error: 'Invalid token - missing user ID' });
     }
 
     // Ensure a user row exists (best-effort). This keeps the app DB-centric.
@@ -63,11 +71,13 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
 
     // Store in cache
     await redisCache.setAuthUser(token, user!);
+    console.log('[AUTH] User cached and authenticated successfully');
 
     req.user = user;
     next();
   } catch (error: any) {
-    console.error('Auth Error:', error);
+    console.error('[AUTH] Authentication error:', error.message || error);
+    console.error('[AUTH] Full error:', error);
     res.status(401).json({
       error: 'Invalid token',
       details: process.env.NODE_ENV === 'development' ? (error?.message || String(error)) : undefined,

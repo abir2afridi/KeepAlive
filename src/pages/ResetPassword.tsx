@@ -125,6 +125,7 @@ export default function ResetPassword() {
                       <input
                         type="email"
                         required
+                        autoComplete="username"
                         value={email}
                         disabled={loading || !!msg}
                         onChange={(e) => setEmail(e.target.value)}
@@ -140,6 +141,7 @@ export default function ResetPassword() {
                       <input
                         type="password"
                         required
+                        autoComplete="new-password"
                         value={password}
                         disabled={loading || !!msg}
                         onChange={(e) => setPassword(e.target.value)}

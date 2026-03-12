@@ -200,6 +200,7 @@ export default function Settings() {
                        <div className="relative group">
                           <input 
                             type="password" 
+                            autoComplete="new-password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className="w-full bg-panel border border-line/40 rounded-xl px-5 py-3 text-[11px] font-bold text-ink focus:outline-none focus:border-primary/50 transition-all font-mono uppercase tracking-widest p-4 whitespace-nowrap overflow-hidden transition-all duration-300"

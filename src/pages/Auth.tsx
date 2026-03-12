@@ -246,6 +246,7 @@ export default function Auth() {
                 <input
                   type="email"
                   required
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-xl bg-panel/50 dark:bg-panel/[0.02] border border-line dark:border-white/5 text-ink text-sm font-black italic px-5 py-2.5 focus:ring-4 focus:ring-primary/10 focus:border-primary/50 outline-none transition-all placeholder:text-ink/30"
@@ -266,6 +267,7 @@ export default function Auth() {
                 <input
                   type="password"
                   required
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-xl bg-panel/50 dark:bg-panel/[0.02] border border-line dark:border-white/5 text-ink text-sm font-black italic px-5 py-2.5 focus:ring-4 focus:ring-primary/10 focus:border-primary/50 outline-none transition-all placeholder:text-ink/30"
