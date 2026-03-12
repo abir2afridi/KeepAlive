@@ -34,6 +34,10 @@ async function withBackoff<T>(fn: () => Promise<T>, opts?: { label?: string; max
   throw lastErr;
 }
 
+async function runQuery<T>(fn: () => Promise<T>, opts?: { label?: string; maxRetries?: number; baseDelayMs?: number }): Promise<T> {
+  return withBackoff(fn, opts);
+}
+
 async function ensureDefaultProjectIdForUser(userId: string): Promise<string | null> {
   try {
     const { data: existing } = await supabaseAdmin
@@ -257,7 +261,7 @@ router.get('/projects', asyncHandler(async (req: AuthRequest, res) => {
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
-    const { data, error } = await withBackoff(
+    const result: any = await runQuery(
       () => supabaseAdmin
         .from('projects')
         .select('id, name, slug, created_at')
@@ -265,8 +269,8 @@ router.get('/projects', asyncHandler(async (req: AuthRequest, res) => {
         .order('created_at', { ascending: false }) as any,
       { label: 'list projects' }
     );
-    if (error) throw error;
-    res.json(data || []);
+    if (result?.error) throw result.error;
+    res.json(result?.data || []);
   } catch (error) {
     return sendError(res, error, 'Failed to fetch projects');
   }
@@ -284,12 +288,12 @@ router.post('/projects', asyncHandler(async (req: AuthRequest, res) => {
   try {
     const payload: any = { user_id: userId, name: String(name).trim() };
     if (slug && typeof slug === 'string') payload.slug = slug;
-    const { data, error } = await withBackoff(
+    const result: any = await runQuery(
       () => supabaseAdmin.from('projects').insert(payload).select('id, name, slug, created_at').single() as any,
       { label: 'create project' }
     );
-    if (error) throw error;
-    res.json({ success: true, project: data });
+    if (result?.error) throw result.error;
+    res.json({ success: true, project: result?.data });
   } catch (error) {
     return sendError(res, error, 'Failed to create project');
   }
@@ -329,10 +333,10 @@ router.get('/alerts', asyncHandler(async (req: AuthRequest, res) => {
       query = query.in('monitor_id', ids);
     }
 
-    const { data, error } = await withBackoff(() => query as any, { label: 'list alert_channels' });
-    if (error) throw error;
+    const result: any = await runQuery(() => query as any, { label: 'list alert_channels' });
+    if (result?.error) throw result.error;
 
-    const rows = (data || []).map((r: any) => ({
+    const rows = (result?.data || []).map((r: any) => ({
       ...r,
       target: r.type === 'email' ? r.target : (() => {
         try { return decrypt(r.target); } catch { return null; }
@@ -369,13 +373,13 @@ router.post('/alerts', asyncHandler(async (req: AuthRequest, res) => {
       target: type === 'email' ? String(target) : encrypt(String(target)),
     };
 
-    const { data, error } = await withBackoff(
+    const result: any = await runQuery(
       () => supabaseAdmin.from('alert_channels').insert(row).select('id, monitor_id, type, target, created_at').single() as any,
       { label: 'create alert_channel' }
     );
-    if (error) throw error;
+    if (result?.error) throw result.error;
     await redisCache.del(`alerts:${monitor_id}`);
-    res.json({ success: true, alert: data });
+    res.json({ success: true, alert: result?.data });
   } catch (error) {
     return sendError(res, error, 'Failed to create alert');
   }
@@ -402,11 +406,11 @@ router.delete('/alerts/:id', asyncHandler(async (req: AuthRequest, res) => {
       .single();
     if (mErr || !mon) return res.status(403).json({ error: 'Unauthorized' });
 
-    const { error } = await withBackoff(
+    const result: any = await runQuery(
       () => supabaseAdmin.from('alert_channels').delete().eq('id', id) as any,
       { label: 'delete alert_channel' }
     );
-    if (error) throw error;
+    if (result?.error) throw result.error;
     await redisCache.del(`alerts:${row.monitor_id}`);
     res.json({ success: true });
   } catch (error) {
@@ -440,11 +444,9 @@ router.get('/monitors', asyncHandler(async (req: AuthRequest, res) => {
         monQuery = monQuery.eq('project_id', projectId);
       }
 
-      const { data: rawMonitors, error } = await withBackoff(() => monQuery as any, { label: 'list monitors' });
-
-      if (error) {
-        throw error;
-      }
+      const monResult: any = await runQuery(() => monQuery as any, { label: 'list monitors' });
+      if (monResult?.error) throw monResult.error;
+      const rawMonitors = monResult?.data;
 
       const ids = (rawMonitors || []).map((m: any) => m.id);
       let pingRows: any[] = [];
