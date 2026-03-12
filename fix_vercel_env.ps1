@@ -1,12 +1,6 @@
-# setup_vercel.ps1
-# This script will set all necessary Firebase and Backend environment variables on your Vercel project.
-# It assumes you are logged in to Vercel (verify with 'npx vercel whoami').
-
+# fix_vercel_env.ps1
 $projId = "prj_wWtw2Pv3JyXiTjmChBAXR1UiYpwQ"
 $scope = "abir2afridi-5746s-projects"
-
-Write-Host "Linking local codebase to Vercel Project: $projId..."
-npx -y vercel link --yes --scope $scope --project $projId
 
 $vars = @{
     "VITE_FIREBASE_API_KEY" = "AIzaSyBKwZPzSUmpCvHTKSp4uHhoywfbPK0-F20"
@@ -21,29 +15,26 @@ $vars = @{
     "ENCRYPTION_KEY" = "your-secret-encryption-key-32-chars-long!!"
 }
 
+# Add Firebase Private Key
+$privateKey = Get-Content -Raw serviceAccount.json | ConvertFrom-Json | Select-Object -ExpandProperty private_key
+$vars["FIREBASE_PRIVATE_KEY"] = $privateKey
+
 foreach ($key in $vars.Keys) {
-    Write-Host "Setting $key..."
+    Write-Host "Cleaning and re-setting $key..."
     $val = $vars[$key]
     
-    # Remove existing to avoid errors/overlap
+    # Remove existing to prevent duplication/errors
     npx -y vercel env rm $key production --scope $scope --yes 2>$null
     
+    # Write to a temporary file WITHOUT newline
     $tmpFile = [System.IO.Path]::GetTempFileName()
     [System.IO.File]::WriteAllText($tmpFile, $val)
+    
+    # Pipe the file content to vercel env add
     Get-Content -Raw $tmpFile | npx -y vercel env add $key production --scope $scope
+    
     Remove-Item $tmpFile
 }
 
-# Special handling for Private Key
-Write-Host "Setting FIREBASE_PRIVATE_KEY..."
-$privateKey = Get-Content -Raw serviceAccount.json | ConvertFrom-Json | Select-Object -ExpandProperty private_key
-npx -y vercel env rm FIREBASE_PRIVATE_KEY production --scope $scope --yes 2>$null
-
-$tmpFile = [System.IO.Path]::GetTempFileName()
-[System.IO.File]::WriteAllText($tmpFile, $privateKey)
-Get-Content -Raw $tmpFile | npx -y vercel env add FIREBASE_PRIVATE_KEY production --scope $scope
-Remove-Item $tmpFile
-
-Write-Host "`nAll environment variables have been cleaned and updated."
-Write-Host "Now redeploying to apply changes..."
+Write-Host "`nRedeploying to apply clean environment variables..."
 npx -y vercel --prod --scope $scope --yes
