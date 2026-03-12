@@ -30,35 +30,79 @@ interface MonitorDetail {
   last_error_message?: string;
 }
 
-const LatencyChart = ({ data, color = "#5551FF" }: { data: Ping[], color?: string }) => {
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "../components/ui/chart";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+const LatencyChart = ({ data, isUp = true }: { data: Ping[], isUp?: boolean }) => {
   if (!data || data.length < 2) return <div className="h-full w-full bg-base dark:bg-panel/[0.01] rounded-2xl animate-pulse border border-line dark:border-white/5" />;
   
-  const points = data.map(p => p.response_time);
-  const max = Math.max(...points, 20);
-  const min = Math.min(...points);
-  const range = (max - min) || 20;
-  const step = 100 / (data.length - 1);
-  
-  const pathData = data.map((p, i) => {
-    const x = i * step;
-    const y = 90 - ((p.response_time - min) / range * 80); 
-    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-  }).join(' ');
+  const chartData = data.map(p => ({
+    time: new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    latency: p.response_time,
+    status: p.is_up === 1 ? 'Up' : 'Down'
+  }));
 
-  const areaData = `${pathData} L 100 100 L 0 100 Z`;
-  const gradId = `grad-details-${Math.random().toString(36).substr(2, 9)}`;
+  const chartConfig = {
+    latency: {
+      label: "Latency",
+      color: isUp ? "hsl(var(--primary))" : "hsl(var(--destructive))",
+    },
+  };
+
+  const strokeColor = isUp ? "var(--primary)" : "#f43f5e";
+  const fillColor = isUp ? "var(--primary)" : "#f43f5e";
 
   return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible group">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.15" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaData} fill={`url(#${gradId})`} className="transition-all duration-1000" />
-      <path d={pathData} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-1000" />
-    </svg>
+    <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
+      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+        <defs>
+          <linearGradient id="latencyGradientPublic" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={fillColor} stopOpacity={0.3} />
+            <stop offset="95%" stopColor={fillColor} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid 
+          vertical={false} 
+          strokeDasharray="3 3" 
+          stroke="currentColor" 
+          className="opacity-[0.03] dark:opacity-[0.05]" 
+        />
+        <XAxis 
+          dataKey="time" 
+          hide 
+        />
+        <YAxis 
+          tickLine={false} 
+          axisLine={false} 
+          tick={false}
+          domain={['auto', 'auto']}
+        />
+        <ChartTooltip
+          cursor={{ stroke: strokeColor, strokeWidth: 1, strokeDasharray: '4 4' }}
+          content={<ChartTooltipContent hideLabel indicator="dot" />}
+        />
+        <Area
+          type="monotone"
+          dataKey="latency"
+          stroke={strokeColor}
+          strokeWidth={2}
+          fillOpacity={1}
+          fill="url(#latencyGradientPublic)"
+          animationDuration={1500}
+        />
+      </AreaChart>
+    </ChartContainer>
   );
 };
 
@@ -198,7 +242,7 @@ export default function PublicMonitorDetails() {
                         max={1000} 
                         label="Latency" 
                         unit="ms" 
-                        colorClass={monitor.last_response_time < 200 ? "text-emerald-500" : monitor.last_response_time < 500 ? "text-amber-500" : "text-rose-500"}
+                        colorClass={monitor.last_response_time < 200 ? "emerald" : monitor.last_response_time < 500 ? "amber" : "rose"}
                       />
                     </div>
                     <div className="space-y-1">
@@ -215,7 +259,7 @@ export default function PublicMonitorDetails() {
                         value={monitor.uptime_percent} 
                         label="Stability" 
                         unit="%" 
-                        colorClass={monitor.uptime_percent > 99 ? "text-emerald-500" : monitor.uptime_percent > 95 ? "text-amber-500" : "text-rose-500"}
+                        colorClass={monitor.uptime_percent > 99 ? "emerald" : monitor.uptime_percent > 95 ? "amber" : "rose"}
                       />
                     </div>
                     <div className="text-right">
@@ -229,8 +273,8 @@ export default function PublicMonitorDetails() {
                  </div>
                </div>
 
-               <div className="h-56 relative z-10">
-                 <LatencyChart data={monitor.recent_pings} color={isUp ? "#10b981" : "#f43f5e"} />
+               <div className="h-64 relative z-10 w-full">
+                  <LatencyChart data={monitor.recent_pings} isUp={isUp} />
                </div>
 
                <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 pt-10 border-t border-line dark:border-white/5 relative z-10">

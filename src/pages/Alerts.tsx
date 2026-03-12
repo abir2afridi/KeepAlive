@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '../components/Layout';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '../supabase/client';
 
 const AlertChannel = ({ 
   icon: Icon, 
@@ -69,6 +71,103 @@ const AlertChannel = ({
 );
 
 export default function Alerts() {
+  const [channels, setChannels] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [newEmail, setNewEmail] = useState('');
+  const [newWebhook, setNewWebhook] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const grouped = useMemo(() => {
+    const g: Record<string, any[]> = {};
+    for (const c of channels || []) {
+      const key = String(c.type || 'unknown');
+      g[key] = g[key] || [];
+      g[key].push(c);
+    }
+    return g;
+  }, [channels]);
+
+  const fetchChannels = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error('Not authenticated');
+
+      const res = await fetch('/api/alerts', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to load alerts');
+      setChannels(Array.isArray(json) ? json : []);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load alerts');
+      setChannels([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchChannels();
+  }, []);
+
+  const createChannel = async (type: 'email' | 'webhook', target: string) => {
+    if (!target) return;
+    setCreating(true);
+    setError('');
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error('Not authenticated');
+
+      const monitor_id = (channels?.[0]?.monitor_id as string | undefined) || null;
+      if (!monitor_id) throw new Error('Create a monitor first (alert channels attach to a monitor)');
+
+      const res = await fetch('/api/alerts', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ monitor_id, type, target }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to create alert');
+
+      setNewEmail('');
+      setNewWebhook('');
+      await fetchChannels();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to create alert');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const deleteChannel = async (id: string) => {
+    if (!id) return;
+    setError('');
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error('Not authenticated');
+
+      const res = await fetch(`/api/alerts/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to delete alert');
+      await fetchChannels();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to delete alert');
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-700">
       
@@ -96,8 +195,8 @@ export default function Alerts() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
           { icon: Lock, label: 'ENCRYPTION', val: 'End-to-End', color: 'text-primary' },
-          { icon: Zap, label: 'TRANSMISSION', val: '< 15ms', color: 'text-emerald-500' },
-          { icon: Globe, label: 'REGISTRY', val: '12 Clusters', color: 'text-blue-500' }
+          { icon: Zap, label: 'CHANNELS', val: String((channels || []).length), color: 'text-emerald-500' },
+          { icon: Globe, label: 'TYPES', val: String(Object.keys(grouped || {}).length || 0), color: 'text-blue-500' }
         ].map((m, i) => (
           <div key={i} className="bg-panel border border-line p-6 rounded-3xl flex items-center gap-5 shadow-sm group hover:translate-y-[-2px] transition-all">
             <div className="size-10 bg-base rounded-xl flex items-center justify-center text-ink/60 group-hover:text-primary border border-line/50 transition-all shadow-sm">
@@ -111,56 +210,147 @@ export default function Alerts() {
         ))}
       </div>
 
+      {loading ? (
+        <div className="bg-panel border border-line p-6 rounded-3xl text-xs text-ink/60 font-medium italic">
+          Loading alert channels...
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="bg-panel border border-red-500/20 text-red-600 dark:text-red-400 p-4 rounded-2xl text-xs font-medium">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="bg-panel border border-line p-6 rounded-3xl space-y-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-bold uppercase tracking-widest italic text-ink/70">Quick Add</div>
+          <button
+            onClick={() => fetchChannels()}
+            className="px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest bg-base border border-line/50 hover:border-primary/30"
+          >
+            Refresh
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-widest text-ink/50">Email</div>
+            <div className="flex gap-2">
+              <input
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="flex-1 bg-base border border-line rounded-xl px-3 py-2 text-xs"
+              />
+              <button
+                disabled={creating || !newEmail}
+                onClick={() => createChannel('email', newEmail)}
+                className="px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest bg-primary text-white disabled:opacity-50"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-widest text-ink/50">Webhook</div>
+            <div className="flex gap-2">
+              <input
+                value={newWebhook}
+                onChange={(e) => setNewWebhook(e.target.value)}
+                placeholder="https://..."
+                className="flex-1 bg-base border border-line rounded-xl px-3 py-2 text-xs"
+              />
+              <button
+                disabled={creating || !newWebhook}
+                onClick={() => createChannel('webhook', newWebhook)}
+                className="px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest bg-primary text-white disabled:opacity-50"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-[10px] text-ink/50 font-medium italic">
+          Note: Alert channels are attached to a monitor. This UI attaches to your first monitor for now.
+        </div>
+      </div>
+
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-        <AlertChannel 
-          icon={Mail} 
-          title="Direct SMTP" 
-          description="High-integrity mail relay via secure encrypted tunnels. Essential protocol for incident logging." 
-          status="ACTIVE"
-          protocol="SMTP/TLS"
+        <AlertChannel
+          icon={Mail}
+          title="Email"
+          description={`Configured channels: ${(grouped.email || []).length}`}
+          status={loading ? 'LOADING' : (grouped.email || []).length > 0 ? 'ACTIVE' : 'INACTIVE'}
+          isComingSoon={false}
+          protocol="SMTP"
         />
-        <AlertChannel 
-          icon={MessageSquare} 
-          title="Discord" 
-          description="Real-time telemetry streaming to secure operations channels. Optimized for team coordination." 
-          status="COMING SOON"
-          isComingSoon
+        <AlertChannel
+          icon={Globe}
+          title="Webhooks"
+          description={`Configured channels: ${(grouped.webhook || []).length}`}
+          status={loading ? 'LOADING' : (grouped.webhook || []).length > 0 ? 'ACTIVE' : 'INACTIVE'}
+          isComingSoon={false}
+          protocol="HTTPS"
+        />
+        <AlertChannel
+          icon={MessageSquare}
+          title="Discord"
+          description="Webhook-based Discord notifications are supported by the worker." 
+          status={(grouped.discord || []).length > 0 ? 'ACTIVE' : 'INACTIVE'}
+          isComingSoon={false}
           protocol="HTTPS/WEBHOOK"
         />
-        <AlertChannel 
-          icon={Slack} 
-          title="Slack" 
-          description="Enterprise-tier workspace integration. Direct incident dispatching with interactive controls." 
-          status="COMING SOON"
-          isComingSoon
-          protocol="HTTPS/REST"
+        <AlertChannel
+          icon={Slack}
+          title="Slack"
+          description="Webhook-based Slack notifications are supported by the worker."
+          status={(grouped.slack || []).length > 0 ? 'ACTIVE' : 'INACTIVE'}
+          isComingSoon={false}
+          protocol="HTTPS/WEBHOOK"
         />
-        <AlertChannel 
-          icon={Globe} 
-          title="Webhooks" 
-          description="Transmission of raw JSON telemetry to your custom edge compute or orchestration layers." 
-          status="COMING SOON"
-          isComingSoon
-          protocol="JSON/POST"
+        <AlertChannel
+          icon={BellRing}
+          title="Telegram"
+          description="Telegram notifications are supported by the worker."
+          status={(grouped.telegram || []).length > 0 ? 'ACTIVE' : 'INACTIVE'}
+          isComingSoon={false}
+          protocol="HTTPS"
         />
-        <AlertChannel 
-          icon={ShieldAlert} 
-          title="SMS Alerts" 
-          description="Out-of-band cellular transmission for infrastructure blackouts and security breaches." 
-          status="COMING SOON"
-          isComingSoon
-          protocol="SS7/CELL"
-        />
-        <AlertChannel 
-          icon={Cpu} 
-          title="Duty Logic" 
-          description="Integration with PagerDuty and OpsGenie. Automated escalation and rotation synchronization." 
+        <AlertChannel
+          icon={Cpu}
+          title="Duty Logic"
+          description="PagerDuty/OpsGenie integration reserved for future releases."
           status="LOCKED"
           isComingSoon
           protocol="API_SYNC"
         />
       </div>
+
+      {!loading && (channels || []).length > 0 ? (
+        <div className="bg-panel border border-line p-6 rounded-3xl space-y-4 shadow-sm">
+          <div className="text-xs font-bold uppercase tracking-widest italic text-ink/70">Configured Channels</div>
+          <div className="space-y-3">
+            {(channels || []).map((c: any) => (
+              <div key={c.id} className="flex items-center justify-between gap-4 bg-base border border-line/50 rounded-2xl px-4 py-3">
+                <div className="min-w-0">
+                  <div className="text-[9px] font-bold uppercase tracking-widest text-ink/50">{String(c.type || '').toUpperCase()}</div>
+                  <div className="text-xs font-medium text-ink truncate">{c.target || '—'}</div>
+                </div>
+                <button
+                  onClick={() => deleteChannel(String(c.id))}
+                  className="px-3 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* Info Block */}
       <div className="bg-slate-900 dark:bg-primary p-10 md:p-14 rounded-[40px] relative overflow-hidden group shadow-2xl text-white">

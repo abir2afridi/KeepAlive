@@ -444,13 +444,16 @@ const SidebarMenuButton = React.forwardRef<
   const Comp = asChild ? Slot : "button";
   const { isMobile, state } = useSidebar();
 
+  const v = variant as NonNullable<VariantProps<typeof sidebarMenuButtonVariants>["variant"]>;
+  const s = size as NonNullable<VariantProps<typeof sidebarMenuButtonVariants>["size"]>;
+
   const button = (
     <Comp
       ref={ref}
       data-sidebar="menu-button"
       data-size={size}
       data-active={isActive}
-      className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+      className={cn(sidebarMenuButtonVariants({ variant: v, size: s }), className)}
       {...props}
     />
   );

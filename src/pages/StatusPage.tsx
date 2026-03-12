@@ -4,6 +4,18 @@ import { Activity, CheckCircle2, CloudCog, ShieldAlert, ChevronRight, Globe, Zap
 import { cn } from '../components/Layout';
 import ThemeToggle from '../components/ThemeToggle';
 import { AnalogMeter } from '../components/ui/AnalogMeter';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "../components/ui/chart";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 interface Monitor {
   id: string;
@@ -23,32 +35,45 @@ interface Monitor {
 const LatencyChart = ({ data, color = "#5551FF" }: { data: any[], color?: string }) => {
   if (!data || data.length < 2) return <div className="h-full w-full bg-base dark:bg-panel/5 rounded-2xl animate-pulse" />;
   
-  const points = data.map(p => p.response_time);
-  const max = Math.max(...points, 20);
-  const min = Math.min(...points);
-  const range = (max - min) || 20;
-  const step = 100 / (data.length - 1);
-  
-  const pathData = data.map((p, i) => {
-    const x = i * step;
-    const y = 90 - ((p.response_time - min) / range * 80); 
-    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-  }).join(' ');
+  const chartData = data.map(p => ({
+    time: new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    latency: p.response_time,
+  }));
 
-  const areaData = `${pathData} L 100 100 L 0 100 Z`;
-  const gradId = `grad-status-${Math.random().toString(36).substr(2, 9)}`;
+  const chartConfig = {
+    latency: {
+      label: "Latency",
+      color: color,
+    },
+  };
 
   return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.1" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaData} fill={`url(#${gradId})`} className="transition-all duration-1000" />
-      <path d={pathData} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-1000" />
-    </svg>
+    <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
+      <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id="latencyGradientStatus" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+            <stop offset="95%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid vertical={false} strokeDasharray="3 3" className="opacity-[0.03]" />
+        <XAxis dataKey="time" hide />
+        <YAxis hide domain={['auto', 'auto']} />
+        <ChartTooltip
+          cursor={{ stroke: color, strokeWidth: 1 }}
+          content={<ChartTooltipContent hideLabel indicator="dot" />}
+        />
+        <Area
+          type="monotone"
+          dataKey="latency"
+          stroke={color}
+          strokeWidth={2}
+          fillOpacity={1}
+          fill="url(#latencyGradientStatus)"
+          animationDuration={1000}
+        />
+      </AreaChart>
+    </ChartContainer>
   );
 };
 
@@ -249,7 +274,7 @@ export default function StatusPage() {
                             label="" 
                             unit="" 
                             className="p-0"
-                            colorClass={monitor.avg_response_time < 200 ? "text-emerald-500" : monitor.avg_response_time < 500 ? "text-amber-500" : "text-rose-500"}
+                            colorClass={monitor.avg_response_time < 200 ? "emerald" : monitor.avg_response_time < 500 ? "amber" : "rose"}
                           />
                        </div>
                        <div>

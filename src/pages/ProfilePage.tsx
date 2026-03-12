@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import {
     Globe, MapPin, Wifi, Shield, Copy, Check, Activity, Server,
@@ -103,7 +103,7 @@ function StabilityIndicator({ stability }: { stability: string }) {
 }
 
 // ─── Info Row ──────────────────────────────────────────────
-function InfoRow({ icon, label, value, copyable }: { icon: React.ReactNode; label: string; value: string; copyable?: boolean }) {
+function InfoRow({ icon, label, value, copyable }: { icon: ReactNode; label: string; value: string; copyable?: boolean }) {
     if (!value) return null;
     return (
         <div className="p-3 rounded-xl bg-panel/20 border border-line/20 space-y-1 group hover:border-primary/20 transition-all">

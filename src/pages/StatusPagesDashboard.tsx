@@ -7,6 +7,18 @@ import {
 import { Link } from 'react-router-dom';
 import { cn } from '../components/Layout';
 import { AnalogMeter } from '../components/ui/AnalogMeter';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "../components/ui/chart";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 interface Monitor {
   id: string;
@@ -22,17 +34,10 @@ interface Monitor {
   last_error_message?: string;
 }
 
-const LatencyChart = ({ data, color = "#5551FF", showArea = true, strokeWidth = 2 }: { data: { response_time: number, is_up: number }[], color?: string, showArea?: boolean, strokeWidth?: number }) => {
+const LatencyChart = ({ data, color = "#5551FF" }: { data: { response_time: number, is_up: number, created_at?: string }[], color?: string }) => {
   if (!data || data.length < 2) {
-    const dummyData = Array.from({ length: 20 }, (_, i) => ({
-      response_time: 15 + Math.sin(i / 3) * 5 + Math.random() * 2,
-      is_up: 1
-    }));
     return (
       <div className="h-full relative overflow-hidden group">
-        <div className="absolute inset-0 opacity-10 grayscale group-hover:opacity-20 transition-opacity">
-          <LatencyChart data={dummyData} color={color} showArea={showArea} strokeWidth={1} />
-        </div>
         <div className="h-full flex flex-col items-center justify-center gap-2 relative z-10">
           <Activity className="size-4 animate-pulse text-primary/60" />
           <span className="text-[7px] font-bold uppercase tracking-widest text-ink/70">Syncing Stream</span>
@@ -41,32 +46,45 @@ const LatencyChart = ({ data, color = "#5551FF", showArea = true, strokeWidth = 
     );
   }
 
-  const points = data.map(p => p.response_time);
-  const max = Math.max(...points, 10);
-  const min = Math.min(...points);
-  const range = max - min || 10;
-  const step = 100 / (data.length - 1);
-  
-  const pathData = data.map((p, i) => {
-    const x = i * step;
-    const y = 90 - ((p.response_time - min) / range * 80); 
-    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-  }).join(' ');
+  const chartData = data.map((p, i) => ({
+    time: p.created_at ? new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `T-${data.length - i}`,
+    latency: p.response_time,
+  }));
 
-  const areaData = `${pathData} L 100 100 L 0 100 Z`;
-  const gradId = `grad-internal-${color.replace('#','')}-${Math.random().toString(36).substr(2, 9)}`;
+  const chartConfig = {
+    latency: {
+      label: "Latency",
+      color: color,
+    },
+  };
 
   return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {showArea && <path d={areaData} fill={`url(#${gradId})`} className="transition-all duration-1000" />}
-      <path d={pathData} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-1000" />
-    </svg>
+    <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
+      <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id="latencyGradientDashboard" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+            <stop offset="95%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid vertical={false} strokeDasharray="3 3" className="opacity-[0.03]" />
+        <XAxis dataKey="time" hide />
+        <YAxis hide domain={['auto', 'auto']} />
+        <ChartTooltip
+          cursor={{ stroke: color, strokeWidth: 1 }}
+          content={<ChartTooltipContent hideLabel indicator="dot" />}
+        />
+        <Area
+          type="monotone"
+          dataKey="latency"
+          stroke={color}
+          strokeWidth={2}
+          fillOpacity={1}
+          fill="url(#latencyGradientDashboard)"
+          animationDuration={1000}
+        />
+      </AreaChart>
+    </ChartContainer>
   );
 };
 
@@ -300,7 +318,7 @@ export default function StatusPagesDashboard() {
                        monitors.map((monitor) => (
                          <Link 
                            key={monitor.id} 
-                           to={`/monitors/${monitor.id}`}
+                           to={`/app/monitors/${monitor.id}`}
                            className="group block"
                          >
                            <div className="flex flex-col h-full bg-panel dark:bg-panel/[0.01] hover:bg-base dark:hover:bg-panel/[0.02] border border-line dark:border-white/5 rounded-3xl p-8 transition-all hover:translate-y-[-4px] shadow-sm">
@@ -428,7 +446,7 @@ export default function StatusPagesDashboard() {
                                    max={100} 
                                    unit="%" 
                                    label="SLA Saturation"
-                                   colorClass="text-emerald-500"
+                                   colorClass="emerald"
                                  />
                               </div>
                            </div>

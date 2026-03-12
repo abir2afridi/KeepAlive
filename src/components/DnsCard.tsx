@@ -1,6 +1,6 @@
 import { DnsProvider, TestResult, getSpeedCategory } from '@/types/dns';
 import { motion } from 'framer-motion';
-import { memo, useState } from 'react';
+import { memo, useState, MouseEvent } from 'react';
 import { toast } from 'sonner';
 import {
   Server,
@@ -39,7 +39,7 @@ export const DnsCard = memo(({ provider, result, onClick, onTest, isTesting, ind
 
   const activeColor = statusColors[speed];
 
-  const handleCopy = (e: React.MouseEvent, text: string, label: string) => {
+  const handleCopy = (e: MouseEvent, text: string, label: string) => {
     e.stopPropagation();
     navigator.clipboard.writeText(text);
     setCopied(label);

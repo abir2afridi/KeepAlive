@@ -53,7 +53,7 @@ export function useDnsTest(providers: DnsProvider[]) {
   }, []);
 
   const getTopProviders = useCallback((count: number = 3) => {
-    return Array.from(results.values())
+    return Array.from(results.values() as Iterable<TestResult>)
       .filter(r => r.status === 'complete' && r.avgLatency > 0)
       .sort((a, b) => a.avgLatency - b.avgLatency)
       .slice(0, count);

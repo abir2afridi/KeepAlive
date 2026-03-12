@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { 
   Zap, 
@@ -12,6 +13,9 @@ import {
   HelpCircle,
   LogOut,
   ChevronRight,
+  ChevronLeft,
+  PanelLeftClose,
+  PanelLeftOpen,
   ShieldCheck,
   Command,
   User,
@@ -28,6 +32,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useTheme } from '../contexts/ThemeContext';
 import ThemeToggle from './ThemeToggle';
+import { supabase } from '../supabase/client';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -37,11 +42,20 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isHovered, setIsHovered] = useState(false);
+  const isExpanded = !isCollapsed || isHovered;
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/auth');
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      navigate('/auth');
+    }
   };
 
   const navItems = [
@@ -86,23 +100,28 @@ export default function Layout() {
     <div className="flex h-screen overflow-hidden bg-base text-ink font-sans transition-colors duration-700">
       
       {/* Refined Sidebar */}
-      <aside className="w-72 flex-shrink-0 border-r border-line bg-panel backdrop-blur-2xl flex flex-col relative z-20 shadow-xl transition-all duration-500 overflow-hidden">
+      <aside 
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{ width: isExpanded ? 288 : 80 }}
+        className="flex-shrink-0 border-r border-line bg-panel backdrop-blur-2xl flex flex-col relative z-20 shadow-xl transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden"
+      >
         
          {/* Branding Area */}
-         <div className="p-8 pb-6 flex items-center gap-4">
-           <div className="size-10 rounded-xl bg-white flex items-center justify-center text-black shadow-lg shadow-white/5">
+         <div className="px-5 pt-8 pb-6 flex items-center gap-4">
+           <div className="size-10 rounded-xl bg-white flex items-center justify-center text-black shadow-lg shadow-white/5 shrink-0">
               <Network className="size-5 font-black" />
            </div>
-           <div>
-              <h1 className="text-xl font-black tracking-[0.1em] text-white uppercase italic leading-none">Net<span className="text-white/40">pulse</span></h1>
-              <p className="text-[10px] text-white/20 font-bold tracking-[0.4em] uppercase mt-1">Intelligence</p>
+           <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+              <h1 className="text-xl font-black tracking-[0.1em] text-white uppercase italic leading-none whitespace-nowrap">Net<span className="text-white/40">pulse</span></h1>
+              <p className="text-[10px] text-white/20 font-bold tracking-[0.4em] uppercase mt-1 whitespace-nowrap">Intelligence</p>
            </div>
-        </div>
+         </div>
 
         {/* Navigation Registry */}
-        <nav className="flex-1 px-6 py-4 space-y-10 overflow-y-auto custom-scrollbar-minimal">
+        <nav className="flex-1 px-3 py-4 space-y-10 overflow-y-auto custom-scrollbar-minimal">
           <div className="space-y-3">
-            <p className="px-3 text-[11px] uppercase tracking-[0.3em] font-bold text-ink/30 italic">Registry</p>
+            <p className={`px-3 text-[11px] uppercase tracking-[0.3em] font-bold text-ink/30 italic transition-all duration-300 whitespace-nowrap ${isExpanded ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden my-0 py-0'}`}>Registry</p>
             <div className="space-y-1.5">
               {navItems.map((item) => {
                 const isParentActive = location.pathname.startsWith(item.path.split('?')[0]);
@@ -121,6 +140,7 @@ export default function Layout() {
                   <div key={item.path} className="space-y-1">
                     <Link
                       to={item.path}
+                      title={!isExpanded ? item.label : undefined}
                       className={cn(
                         "flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 group relative",
                         isActive 
@@ -129,18 +149,18 @@ export default function Layout() {
                       )}
                     >
                       <div className="flex items-center gap-3 relative z-10">
-                        <item.icon className={cn("size-5 transition-transform", isActive && "text-primary")} />
-                        <span className="text-xs font-bold tracking-widest italic">{item.label}</span>
+                        <item.icon className={cn("size-5 shrink-0 transition-transform", isActive && "text-primary")} />
+                        <span className={`text-xs font-bold tracking-widest italic whitespace-nowrap transition-all duration-300 ${isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'}`}>{item.label}</span>
                       </div>
                       {isActive ? (
-                        <div className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_#5551FF]" />
-                      ) : (
-                        <ChevronRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0" />
-                      )}
+                        <div className={`size-1.5 rounded-full bg-primary shadow-[0_0_8px_#5551FF] shrink-0 ${isExpanded ? '' : 'absolute right-2 top-1/2 -translate-y-1/2'}`} />
+                      ) : isExpanded ? (
+                        <ChevronRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0 shrink-0" />
+                      ) : null}
                     </Link>
                     
                     {/* Render sub-features if present and parent route is active */}
-                    {item.children && isParentActive && (
+                    {item.children && isParentActive && isExpanded && (
                       <div className="pl-12 pr-4 pt-1 pb-2 space-y-2 relative">
                         <div className="absolute left-[31px] top-0 bottom-3 w-[1px] bg-line/60" />
                         {item.children.map((child) => {
@@ -169,7 +189,7 @@ export default function Layout() {
           </div>
 
           <div className="space-y-3 pt-6 border-t border-line/50">
-            <p className="px-3 text-[11px] uppercase tracking-[0.3em] font-bold text-ink/30 italic">About & Support</p>
+            <p className={`px-3 text-[11px] uppercase tracking-[0.3em] font-bold text-ink/30 italic transition-all duration-300 whitespace-nowrap ${isExpanded ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden my-0 py-0'}`}>About & Support</p>
             <div className="space-y-1.5">
               {supportItems.map((item) => {
                 const isActive = (() => {
@@ -184,6 +204,7 @@ export default function Layout() {
                   <Link
                     key={item.path}
                     to={item.path}
+                    title={!isExpanded ? item.label : undefined}
                     className={cn(
                       "flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 group relative",
                       isActive 
@@ -192,14 +213,14 @@ export default function Layout() {
                     )}
                   >
                     <div className="flex items-center gap-3 relative z-10">
-                      <item.icon className={cn("size-5 transition-transform", isActive && "text-primary")} />
-                      <span className="text-xs font-bold tracking-widest italic">{item.label}</span>
+                      <item.icon className={cn("size-5 shrink-0 transition-transform", isActive && "text-primary")} />
+                      <span className={`text-xs font-bold tracking-widest italic whitespace-nowrap transition-all duration-300 ${isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'}`}>{item.label}</span>
                     </div>
                     {isActive ? (
-                      <div className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_#5551FF]" />
-                    ) : (
-                      <ChevronRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0" />
-                    )}
+                      <div className={`size-1.5 rounded-full bg-primary shadow-[0_0_8px_#5551FF] shrink-0 ${isExpanded ? '' : 'absolute right-2 top-1/2 -translate-y-1/2'}`} />
+                    ) : isExpanded ? (
+                      <ChevronRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0 shrink-0" />
+                    ) : null}
                   </Link>
                 );
               })}
@@ -207,10 +228,11 @@ export default function Layout() {
           </div>
 
           <div className="space-y-3 pt-6 border-t border-line/50">
-            <p className="px-3 text-[11px] uppercase tracking-[0.3em] font-bold text-ink/30 italic">Systems</p>
+            <p className={`px-3 text-[11px] uppercase tracking-[0.3em] font-bold text-ink/30 italic transition-all duration-300 whitespace-nowrap ${isExpanded ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden my-0 py-0'}`}>Systems</p>
             <div className="space-y-1.5">
               <Link
                 to="/app/settings"
+                title={!isExpanded ? 'Account' : undefined}
                 className={cn(
                   "flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 group border border-transparent",
                   location.pathname === '/app/settings' 
@@ -219,25 +241,45 @@ export default function Layout() {
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <User className="size-4.5 group-hover:scale-110 transition-transform duration-500" />
-                  <span className="text-[10px] font-bold tracking-widest italic uppercase">Account</span>
+                  <User className="size-4.5 shrink-0 group-hover:scale-110 transition-transform duration-500" />
+                  <span className={`text-[10px] font-bold tracking-widest italic uppercase whitespace-nowrap transition-all duration-300 ${isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'}`}>Account</span>
                 </div>
-                <ChevronRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-all" />
+                {isExpanded && <ChevronRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-all shrink-0" />}
               </Link>
               <button
                 onClick={handleLogout}
+                title={!isExpanded ? 'Logout' : undefined}
                 className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-ink/50 hover:text-rose-500 hover:bg-rose-500/10 transition-all duration-300 group"
               >
                 <div className="flex items-center gap-3">
-                  <LogOut className="size-4.5" />
-                  <span className="text-[10px] font-bold tracking-widest italic uppercase">Logout</span>
+                  <LogOut className="size-4.5 shrink-0" />
+                  <span className={`text-[10px] font-bold tracking-widest italic uppercase whitespace-nowrap transition-all duration-300 ${isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'}`}>Logout</span>
                 </div>
               </button>
             </div>
           </div>
         </nav>
 
-        {/* Global Action Removed as requested */}
+        {/* Sidebar Toggle */}
+        <div className="px-3 pb-6 pt-4 border-t border-line/50">
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            title={isCollapsed ? 'Pin sidebar open' : 'Collapse sidebar'}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group",
+              "text-ink/30 hover:text-ink/60 hover:bg-base"
+            )}
+          >
+            {isCollapsed ? (
+              <PanelLeftOpen className="size-4.5 shrink-0" />
+            ) : (
+              <PanelLeftClose className="size-4.5 shrink-0" />
+            )}
+            <span className={`text-[10px] font-bold tracking-widest italic uppercase whitespace-nowrap transition-all duration-300 ${isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'}`}>
+              {isCollapsed ? 'Pin Open' : 'Collapse'}
+            </span>
+          </button>
+        </div>
       </aside>
 
       {/* Main Command Processor */}

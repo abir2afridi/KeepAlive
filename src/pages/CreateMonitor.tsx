@@ -43,10 +43,11 @@ export default function CreateMonitor() {
   const [formData, setFormData] = useState({
     name: '',
     url: '',
-    type: 'Website',
+    type: 'WEBSITE',
     interval: 300, 
     method: 'GET',
     body: '',
+    port: 80,
     keep_alive: false,
     expected_status: 200
   });
@@ -223,33 +224,55 @@ export default function CreateMonitor() {
                   </div>
 
                   <div className="space-y-2">
-                     <SettingLabel label="Target URL" info="The full URL of the service to monitor." />
-                     <input 
-                       type="url" 
-                       required
-                       value={formData.url}
-                       onChange={(e) => setFormData({...formData, url: e.target.value})}
-                       placeholder="https://example.com"
-                       className="w-full bg-base border border-line rounded-xl px-5 py-3.5 text-[11px] font-bold text-ink focus:outline-none focus:border-primary/50 transition-all font-mono lowercase tracking-tight"
-                     />
+                     <SettingLabel label="Target Host/URL" info="The full URL or hostname:port of the service." />
+                     <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          required
+                          value={formData.url}
+                          onChange={(e) => setFormData({...formData, url: e.target.value})}
+                          placeholder={formData.type === 'WEBSITE' ? 'https://example.com' : 'example.com'}
+                          className="flex-1 bg-base border border-line rounded-xl px-5 py-3.5 text-[11px] font-bold text-ink focus:outline-none focus:border-primary/50 transition-all font-mono lowercase tracking-tight"
+                        />
+                        {(formData.type === 'TCP' || formData.type === 'SSL') && (
+                          <input 
+                            type="number" 
+                            required
+                            value={formData.port}
+                            onChange={(e) => setFormData({...formData, port: parseInt(e.target.value)})}
+                            placeholder="443"
+                            className="w-24 bg-base border border-line rounded-xl px-4 py-3.5 text-[11px] font-bold text-ink focus:outline-none focus:border-primary/50 transition-all font-mono tracking-tight"
+                          />
+                        )}
+                     </div>
                   </div>
 
                   <div className="space-y-4">
                      <SettingLabel label="Monitor Type" info="The protocol used for checking status." />
-                     <div className="flex gap-2">
-                        {['Website', 'API Monitor', 'Ping', 'Supabase Keep-Alive'].map((t) => (
+                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {[
+                          { id: 'WEBSITE', label: 'HTTP(s)', icon: Globe },
+                          { id: 'TCP', label: 'TCP Port', icon: Terminal },
+                          { id: 'SSL', label: 'SSL Check', icon: ShieldCheck },
+                          { id: 'SUPABASE', label: 'Supabase', icon: Zap }
+                        ].map((t) => (
                            <button 
-                             key={t}
+                             key={t.id}
                              type="button"
-                             onClick={() => setFormData({...formData, type: t})}
+                             onClick={() => {
+                               const updates: any = { type: t.id };
+                               if (t.id === 'TCP' || t.id === 'SSL') updates.port = 443;
+                               setFormData({...formData, ...updates});
+                             }}
                              className={cn(
-                               "flex-1 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest border transition-all italic",
-                                formData.type === t 
+                               "flex flex-col items-center gap-2 py-3 rounded-xl text-[9px] font-bold uppercase tracking-widest border transition-all italic",
+                                formData.type === t.id 
                                  ? "bg-primary text-white border-transparent shadow-md" 
                                  : "bg-panel border-line text-ink/70 hover:border-primary/30"
                              )}
                            >
-                               {t}
+                               <t.icon className="size-4" />
+                               {t.label}
                            </button>
                         ))}
                      </div>

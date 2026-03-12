@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../components/Layout';
 import { AnalogMeter } from '../components/ui/AnalogMeter';
+import { supabase } from '../supabase/client';
 
 interface Monitor {
   id: string;
@@ -26,6 +27,14 @@ interface Stats {
   avg_response_time: number;
 }
 
+import {
+  ChartContainer,
+} from "../components/ui/chart";
+import {
+  Area,
+  AreaChart,
+} from "recharts";
+
 const MiniChart = ({ data, color = "#5551FF" }: { data: any[], color?: string }) => {
   if (!data || data.length < 2) {
     return (
@@ -34,16 +43,31 @@ const MiniChart = ({ data, color = "#5551FF" }: { data: any[], color?: string })
       </div>
     );
   }
-  const points = data.map(p => p.response_time);
-  const max = Math.max(...points, 10);
-  const min = Math.min(...points);
-  const range = max - min || 10;
-  const step = 100 / (data.length - 1);
-  const pathData = data.map((p, i) => `${i === 0 ? 'M' : 'L'} ${i * step} ${95 - ((p.response_time - min) / range * 90)}`).join(' ');
+  
+  const chartData = data.map((p, i) => ({
+    latency: p.response_time,
+  }));
+
+  const chartConfig = {
+    latency: {
+      label: "Latency",
+      color: color,
+    },
+  };
+
   return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible opacity-50 transition-all duration-1000">
-      <path d={pathData} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
+      <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+        <Area
+          type="monotone"
+          dataKey="latency"
+          stroke={color}
+          strokeWidth={2}
+          fill="transparent"
+          animationDuration={1000}
+        />
+      </AreaChart>
+    </ChartContainer>
   );
 };
 
@@ -52,23 +76,72 @@ export default function Dashboard() {
   const [stats, setStats] = useState<Stats>({ total_monitors: 0, overall_uptime: 0, avg_response_time: 0 });
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  // ─── Hydration from LocalStorage ──────────────────────────────────────────
+  useEffect(() => {
+    const savedMonitors = localStorage.getItem('ka_monitors');
+    const savedStats = localStorage.getItem('ka_stats');
+    if (savedMonitors) {
+      try { setMonitors(JSON.parse(savedMonitors)); } catch (e) {}
+    }
+    if (savedStats) {
+      try { setStats(JSON.parse(savedStats)); } catch (e) {}
+    }
+  }, []);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
     else setIsRefreshing(true);
     try {
-      const token = localStorage.getItem('token');
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token || localStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
       const headers = { 'Authorization': `Bearer ${token}` };
       const [monitorsRes, statsRes] = await Promise.all([
         fetch('/api/monitors', { headers }),
         fetch('/api/stats', { headers })
       ]);
-      const monitorsData = await monitorsRes.json();
-      const statsData = await statsRes.json();
-      setMonitors(monitorsData);
-      setStats(statsData);
+
+      if (monitorsRes.status === 401 || statsRes.status === 401) {
+        console.warn('Session might be stale.');
+        setLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
+
+      // Server now always returns 200 with data (real, cached, or empty defaults)
+      if (monitorsRes.ok && statsRes.ok) {
+        const monitorsData = await monitorsRes.json();
+        const statsData = await statsRes.json();
+        
+        const validMonitors = Array.isArray(monitorsData) ? monitorsData : [];
+        const validStats = statsData || { total_monitors: 0, overall_uptime: 0, avg_response_time: 0 };
+        
+        setMonitors(validMonitors);
+        setStats(validStats);
+        setQuotaExceeded(false);
+        setLastUpdated(new Date());
+
+        // Save for offline/quota-hit use
+        if (validMonitors.length > 0) {
+          localStorage.setItem('ka_monitors', JSON.stringify(validMonitors));
+        }
+        if (validStats.total_monitors > 0) {
+          localStorage.setItem('ka_stats', JSON.stringify(validStats));
+        }
+      } else if (monitorsRes.status === 429 || statsRes.status === 429) {
+        // Fallback: if server still returns 429 for some reason
+        setQuotaExceeded(true);
+      }
     } catch (error) {
-      console.error('Failed to fetch data', error);
+      console.debug('Dashboard fetch suppressed or failed:', error);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -76,12 +149,31 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(() => fetchData(true), 15000);
-    return () => clearInterval(interval);
+    let mounted = true;
+
+    supabase.auth.getSession().then(() => {
+      if (!mounted) return;
+      setAuthReady(true);
+      fetchData();
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, _session) => {
+      setAuthReady(true);
+      fetchData(true);
+    });
+
+    const interval = setInterval(() => {
+      fetchData(true);
+    }, 60000);
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+      clearInterval(interval);
+    };
   }, []);
 
-  if (loading) return (
+  if (!authReady || loading) return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center gap-6">
       <RefreshCw className="size-8 text-primary animate-spin" />
       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic animate-pulse">Syncing Telemetry...</span>
@@ -92,8 +184,39 @@ export default function Dashboard() {
     <div className="max-w-6xl mx-auto space-y-12 transition-all duration-700">
       
       <div className="flex items-center justify-between pb-4 border-b border-line/40">
-        <h2 className="text-xs font-bold text-ink/60 uppercase tracking-[0.3em] italic">Operational Intelligence</h2>
+        <div className="space-y-1">
+          <h2 className="text-xs font-bold text-ink/60 uppercase tracking-[0.3em] italic">Operational Intelligence</h2>
+          {lastUpdated && !quotaExceeded && (
+            <p className="text-[10px] text-ink/30 italic">Last synchronized: {lastUpdated.toLocaleTimeString()}</p>
+          )}
+        </div>
+        {quotaExceeded && (
+          <button 
+            onClick={() => fetchData()}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all group"
+          >
+            <RefreshCw className="size-3 group-hover:rotate-180 transition-transform duration-700" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Retry Now</span>
+          </button>
+        )}
       </div>
+
+      {/* Quota Warning Banner */}
+      {quotaExceeded && (
+        <div className="bg-amber-500/5 border border-amber-500/20 rounded-3xl p-6 flex items-start gap-4 animate-in fade-in slide-in-from-top-4 duration-700">
+          <div className="size-10 rounded-2xl bg-amber-500/10 flex items-center justify-center shrink-0">
+            <ShieldCheck className="size-5 text-amber-500" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-amber-500 italic uppercase tracking-wider">Service Capacity Throttled</h3>
+            <p className="text-xs text-ink/60 leading-relaxed italic">
+              The platform has reached its free-tier data synchronization limit. Monitoring continues in the background, 
+              but dashboard updates are currently throttled. Normal service will resume automatically when the daily quota resets.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Stats Grid - Minimalist & Premium */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-panel border border-line/40 p-8 rounded-3xl flex flex-col gap-6 shadow-sm hover:translate-y-[-2px] transition-all">
@@ -101,7 +224,7 @@ export default function Dashboard() {
               <div className="size-10 rounded-xl flex items-center justify-center border border-current/10 shadow-sm bg-primary/5 text-primary">
                  <Activity className="size-5" />
               </div>
-              {isRefreshing && <RefreshCw className="size-3 text-primary animate-spin" />}
+              {(isRefreshing || loading) && !quotaExceeded && <RefreshCw className="size-3 text-primary animate-spin" />}
            </div>
            <div>
               <span className="text-[9px] font-bold text-ink/60 uppercase tracking-[0.2em] italic mb-1.5 block">Active nodes</span>
@@ -116,7 +239,7 @@ export default function Dashboard() {
              max={100} 
              unit="%" 
              label="Global Uptime" 
-             colorClass="text-emerald-500"
+             colorClass="emerald"
              className="w-full"
            />
            <p className="text-[9px] text-ink/40 italic mt-2 text-center px-4">Cluster availability within nominal safety thresholds.</p>
@@ -126,10 +249,10 @@ export default function Dashboard() {
            <div className="absolute top-4 right-4 text-[8px] font-black text-blue-500/40 uppercase tracking-widest italic">Optimized</div>
            <AnalogMeter 
              value={stats.avg_response_time} 
-             max={1000} 
+             max={500} 
              unit="ms" 
              label="Avg Latency" 
-             colorClass="text-blue-500"
+             colorClass="blue"
              className="w-full"
            />
            <p className="text-[9px] text-ink/40 italic mt-2 text-center px-4">Global velocity synchronized across all active edge nodes.</p>
@@ -157,7 +280,7 @@ export default function Dashboard() {
                 monitors.slice(0, 6).map(monitor => (
                   <Link 
                     key={monitor.id} 
-                    to={`/monitors/${monitor.id}`}
+                    to={`/app/monitors/${monitor.id}`}
                     className="flex items-center justify-between p-6 bg-panel hover:bg-panel/80 border border-line/40 rounded-2xl transition-all shadow-sm group"
                   >
                     <div className="flex items-center gap-6">
@@ -217,7 +340,7 @@ export default function Dashboard() {
                        max={100} 
                        unit="%" 
                        label="System Uptime"
-                       colorClass="text-primary"
+                       colorClass="primary"
                      />
                   </div>
                </div>
@@ -225,8 +348,8 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-2 gap-4">
                {[
-                 { icon: BarChart3, label: 'Analytics', link: '/monitors' },
-                 { icon: Clock, label: 'Incidents', link: '/status' },
+                 { icon: BarChart3, label: 'Analytics', link: '/app/monitors' },
+                 { icon: Clock, label: 'Incidents', link: '/app/status' },
                ].map((action, i) => (
                  <Link key={i} to={action.link} className="p-6 bg-panel border border-line/40 rounded-2xl hover:bg-panel/80 transition-all text-center space-y-3 group shadow-sm">
                     <action.icon className="size-4 text-ink/60 mx-auto group-hover:text-primary transition-colors" />

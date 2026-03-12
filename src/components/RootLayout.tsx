@@ -1,9 +1,9 @@
-import { useState, useEffect, Suspense, memo } from 'react';
+import { useState, useEffect, Suspense, memo, ReactNode } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const RootLayout = memo(({ children }: { children: React.ReactNode }) => {
+export const RootLayout = memo(({ children }: { children: ReactNode }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();

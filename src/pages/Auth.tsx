@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Zap, Shield, Lock, Mail, UserPlus, 
@@ -7,13 +7,7 @@ import {
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import { cn } from '../components/Layout';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
-  getIdToken,
-  signInWithPopup
-} from 'firebase/auth';
-import { auth, googleProvider } from '../firebase';
+import { supabase } from '../supabase/client';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -24,50 +18,99 @@ export default function Auth() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+        if (cancelled) return;
+
+        localStorage.setItem('token', token);
+
+        try {
+          const res = await fetch('/auth/sync', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+
+          if (res.ok) {
+            const payload = await res.json();
+            localStorage.setItem('user', JSON.stringify(payload.user));
+          }
+        } catch {
+          // ignore; token is still valid for API calls
+        }
+
+        navigate('/app/dashboard');
+      } catch (e) {
+        // ignore
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      let userCredential;
-      if (isLogin) {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
-      } else {
-        userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      }
+      const { data, error: authErr } = isLogin
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({ email, password });
 
-      const token = await getIdToken(userCredential.user);
+      if (authErr) throw authErr;
+
+      const token = data.session?.access_token;
+      if (!token) throw new Error('Missing session token');
       
-      // Sync with backend to ensure Firestore profile exists and get metadata (plan, etc)
-      const res = await fetch('/auth/sync', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+      // Try to sync with backend
+      let syncSucceeded = false;
+      try {
+        const res = await fetch('/auth/sync', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          localStorage.setItem('user', JSON.stringify(data.user));
+          syncSucceeded = true;
+        } else {
+          const data = await res.json().catch(() => ({}));
+          console.warn('Backend sync failed:', res.status, data);
         }
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Identity synchronization failed');
+      } catch (syncErr) {
+        console.warn('Backend sync request failed:', syncErr);
       }
 
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      if (!syncSucceeded) {
+        const supaUser = data.user;
+        localStorage.setItem('user', JSON.stringify({
+          email: supaUser?.email,
+          name: supaUser?.email?.split('@')[0],
+          uid: supaUser?.id,
+          plan: 'free',
+        }));
+      }
+
       navigate('/app/dashboard');
     } catch (err: any) {
       console.error('Auth sequence error:', err);
-      // Simplify Firebase error messages
-      let msg = err.message;
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        msg = 'Invalid credentials';
-      } else if (err.code === 'auth/email-already-in-use') {
-        msg = 'Email already exists';
-      } else if (err.code === 'auth/weak-password') {
-        msg = 'Password should be at least 6 characters';
-      }
+      let msg = err.message || 'Authentication failed';
       setError(msg);
     } finally {
       setLoading(false);
@@ -79,37 +122,34 @@ export default function Auth() {
     setGoogleLoading(true);
 
     try {
-      const userCredential = await signInWithPopup(auth, googleProvider);
-      const token = await getIdToken(userCredential.user);
-      console.log('Acquired ID Token, syncing with backend...');
-      
-      const res = await fetch('/auth/sync', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + '/auth' },
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        console.error('Backend sync failed:', data);
-        throw new Error(data.details || data.error || 'Identity synchronization failed');
+      if (error) throw error;
+      if (!data.url) throw new Error('Missing OAuth redirect URL');
+      window.location.href = data.url;
+      return;
+      
+      // Try to sync with backend
+      let syncSucceeded = false;
+      try {
+        // no-op; OAuth completes after redirect
+      } catch (syncErr) {
+        console.warn('Backend sync request failed:', syncErr);
       }
-
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      navigate('/app/dashboard');
     } catch (err: any) {
       console.error('Google Auth Error:', err);
-      setError(err.message || 'Verification cancelled');
+      let msg = err.message || 'Verification cancelled';
+      setError(msg);
     } finally {
       setGoogleLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-base text-ink font-sans relative overflow-x-hidden transition-colors duration-1000">
+    <div className="h-screen overflow-hidden flex flex-col lg:flex-row bg-base text-ink font-sans relative transition-colors duration-1000">
       
       {/* Background Decorative Elements */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -173,48 +213,49 @@ export default function Auth() {
       </div>
 
       {/* Right Side: Auth Form Panel */}
-      <div className="flex-1 flex flex-col justify-center px-8 py-16 lg:px-24 lg:py-24 relative bg-base dark:bg-base/95 overflow-y-auto">
-        <div className="max-w-sm w-full mx-auto space-y-12">
-          <div className="space-y-4 text-center lg:text-left">
-            <div className="lg:hidden flex justify-center mb-10">
-              <div className="size-16 rounded-2xl bg-primary flex items-center justify-center text-white shadow-2xl shadow-primary/40">
-                <Zap className="size-8 fill-white" />
+      <div className="flex-1 flex flex-col justify-center px-6 py-4 lg:px-24 lg:py-8 relative bg-base dark:bg-base/95 overflow-hidden">
+        <div className="max-w-sm w-full mx-auto space-y-4">
+          <div className="space-y-1 lg:text-left">
+            <div className="lg:hidden flex items-center gap-3 mb-2">
+              <div className="size-8 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/40">
+                <Zap className="size-3.5 fill-white" />
               </div>
+              <p className="text-xs font-black text-ink uppercase italic">Keep<span className="text-primary">Alive</span></p>
             </div>
-            <h3 className="text-4xl font-black text-ink tracking-tight uppercase">
+            <h3 className="text-2xl sm:text-3xl font-black text-ink tracking-tight uppercase">
               {isLogin ? 'Grant Access' : 'Create Node'}
             </h3>
-            <p className="text-sm font-bold text-ink/60 italic">
+            <p className="text-xs font-bold text-ink/60 italic">
               {isLogin ? 'Provide observer credentials for identity verification.' : 'Establish new command center authorization.'}
             </p>
           </div>
 
-          <form className="space-y-7" onSubmit={handleSubmit}>
+          <form className="space-y-3" onSubmit={handleSubmit}>
             {error && (
-              <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-4 italic animate-in fade-in slide-in-from-top-2">
-                <ShieldAlert className="size-5 shrink-0" />
+              <div className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 italic">
+                <ShieldAlert className="size-4 shrink-0" />
                 {error}
               </div>
             )}
 
-            <div className="space-y-5">
-              <div className="space-y-2.5">
-                <label className="text-[10px] font-black text-ink/50 uppercase tracking-[0.2em] ml-1 flex items-center gap-2.5">
-                  <Mail className="size-3.5 text-primary" /> Global Identity
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-ink/50 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
+                  <Mail className="size-3 text-primary" /> Global Identity
                 </label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-[24px] bg-panel/50 dark:bg-panel/[0.02] border border-line dark:border-white/5 text-ink text-sm font-black italic px-6 py-4.5 focus:ring-[6px] focus:ring-primary/10 focus:border-primary/50 outline-none transition-all placeholder:text-ink/30 dark:placeholder:text-ink/10"
+                  className="w-full rounded-xl bg-panel/50 dark:bg-panel/[0.02] border border-line dark:border-white/5 text-ink text-sm font-black italic px-5 py-2.5 focus:ring-4 focus:ring-primary/10 focus:border-primary/50 outline-none transition-all placeholder:text-ink/30"
                   placeholder="ADMIN@DOMAIN.CORE"
                 />
               </div>
-              <div className="space-y-2.5">
+              <div className="space-y-1.5">
                 <div className="flex justify-between items-center px-1">
-                  <label className="text-[10px] font-black text-ink/50 uppercase tracking-[0.2em] flex items-center gap-2.5">
-                    <Lock className="size-3.5 text-primary" /> Access Cipher
+                  <label className="text-[10px] font-black text-ink/50 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <Lock className="size-3 text-primary" /> Access Cipher
                   </label>
                   {isLogin && (
                     <button type="button" onClick={() => navigate('/reset-password')} className="text-[9px] font-black text-ink/40 hover:text-primary transition-colors tracking-widest uppercase">
@@ -227,24 +268,23 @@ export default function Auth() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-[24px] bg-panel/50 dark:bg-panel/[0.02] border border-line dark:border-white/5 text-ink text-sm font-black italic px-6 py-4.5 focus:ring-[6px] focus:ring-primary/10 focus:border-primary/50 outline-none transition-all placeholder:text-ink/30 dark:placeholder:text-ink/10"
+                  className="w-full rounded-xl bg-panel/50 dark:bg-panel/[0.02] border border-line dark:border-white/5 text-ink text-sm font-black italic px-5 py-2.5 focus:ring-4 focus:ring-primary/10 focus:border-primary/50 outline-none transition-all placeholder:text-ink/30"
                   placeholder="••••••••"
                 />
               </div>
             </div>
 
-            <div className="space-y-6 pt-2">
+            <div className="space-y-3 pt-1">
               <button
                 type="submit"
                 disabled={loading || googleLoading}
-                className="w-full py-5 bg-primary text-white rounded-[24px] font-black text-[11px] uppercase tracking-[0.2em] hover:translate-y-[-2px] hover:shadow-2xl hover:shadow-primary/40 transition-all active:scale-[0.98] flex items-center justify-center gap-4 group disabled:opacity-50"
-              >
-                {loading ? <RefreshCw className="size-5 animate-spin" /> : (isLogin ? <Fingerprint className="size-5" /> : <UserPlus className="size-5" />)}
+                className="w-full py-3 bg-primary text-white rounded-xl font-black text-[11px] uppercase tracking-[0.2em] hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40 transition-all active:scale-[0.98] flex items-center justify-center gap-3 group disabled:opacity-50">
+                {loading ? <RefreshCw className="size-4 animate-spin" /> : (isLogin ? <Fingerprint className="size-4" /> : <UserPlus className="size-4" />)}
                 {loading ? 'AUTHENTICATING...' : (isLogin ? 'VERIFY ACCESS' : 'AUTHORIZE NODE')}
-                {!loading && <ArrowRight className="size-4 group-hover:translate-x-1.5 transition-transform" />}
+                {!loading && <ArrowRight className="size-3.5 group-hover:translate-x-1 transition-transform" />}
               </button>
 
-              <div className="relative py-2 flex items-center gap-6">
+              <div className="relative flex items-center gap-4">
                 <div className="flex-1 h-[1px] bg-line dark:bg-white/5" />
                 <span className="text-[9px] font-black text-ink/30 uppercase tracking-[0.3em] italic">Or Interlink</span>
                 <div className="flex-1 h-[1px] bg-line dark:bg-white/5" />
@@ -254,7 +294,7 @@ export default function Auth() {
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={loading || googleLoading}
-                className="w-full py-4.5 bg-panel/50 dark:bg-panel/[0.04] border border-line dark:border-white/10 text-ink rounded-[24px] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white dark:hover:bg-white/5 hover:shadow-xl transition-all flex items-center justify-center gap-4 disabled:opacity-50 border-dashed"
+                className="w-full py-3 bg-panel/50 dark:bg-panel/[0.04] border border-line dark:border-white/10 text-ink rounded-xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white dark:hover:bg-white/5 hover:shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-50 border-dashed"
               >
                 {googleLoading ? (
                   <RefreshCw className="size-4 animate-spin" />
@@ -271,24 +311,17 @@ export default function Auth() {
             </div>
           </form>
 
-          <div className="pt-10 border-t border-line dark:border-white/5 text-center">
+          <div className="pt-4 border-t border-line dark:border-white/5 flex items-center justify-between">
             <button
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setError('');
-              }}
-              className="text-[10px] font-black uppercase tracking-[0.2em] text-ink/40 hover:text-primary transition-all italic border-b border-transparent hover:border-primary/30 pb-1"
+              onClick={() => { setIsLogin(!isLogin); setError(''); }}
+              className="text-[10px] font-black uppercase tracking-[0.2em] text-ink/40 hover:text-primary transition-all italic border-b border-transparent hover:border-primary/30 pb-0.5"
             >
-              {isLogin ? "Request New Registration" : 'Existing Observer Credentials'}
+              {isLogin ? "New Registration" : 'Existing Credentials'}
             </button>
-          </div>
-          
-          <div className="pt-6">
-             <div className="flex items-center justify-center gap-6 text-ink/20">
-               <Globe className="size-4 animate-spin-slow" />
-               <span className="text-[8px] font-black uppercase tracking-[0.4em] text-ink/30 dark:text-ink/20">Secure Data Mesh active</span>
-               <CheckCircle2 className="size-4" />
-             </div>
+            <div className="flex items-center gap-2 text-ink/20">
+              <Globe className="size-3 animate-spin-slow" />
+              <CheckCircle2 className="size-3" />
+            </div>
           </div>
         </div>
       </div>

@@ -7,8 +7,7 @@ import {
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import { cn } from '../components/Layout';
-import { auth } from '../firebase';
-import { sendPasswordResetEmail, confirmPasswordReset } from 'firebase/auth';
+import { supabase } from '../supabase/client';
 
 export default function ResetPassword() {
   const { token } = useParams<{ token?: string }>();
@@ -26,7 +25,10 @@ export default function ResetPassword() {
     setMsg('');
     
     try {
-      await sendPasswordResetEmail(auth, email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
       setMsg('If credentials match, a recovery payload has been dispatched.');
     } catch (err: any) {
       console.error('Password reset request error:', err);
@@ -38,13 +40,17 @@ export default function ResetPassword() {
 
   const handleConfirmReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
     setLoading(true);
     setError('');
     setMsg('');
     
     try {
-      await confirmPasswordReset(auth, token, password);
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        throw new Error('Recovery session not found. Open the reset link from your email again.');
+      }
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
       setMsg('Security credentials updated. Redirecting to terminal...');
       setTimeout(() => navigate('/auth'), 2500);
     } catch (err: any) {

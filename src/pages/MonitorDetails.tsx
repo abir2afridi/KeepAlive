@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../components/Layout';
 import { AnalogMeter } from '../components/ui/AnalogMeter';
+import { supabase } from '../supabase/client';
 
 interface Ping {
   response_time: number;
@@ -31,16 +32,31 @@ interface MonitorDetail {
   last_error_message?: string;
 }
 
-const LatencyChart = ({ data, color = "#5551FF" }: { data: Ping[], color?: string }) => {
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "../components/ui/chart";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+const LatencyChart = ({ data, isUp = true }: { data: Ping[], isUp?: boolean }) => {
   if (!data || data.length < 2) {
     const dummyData = Array.from({ length: 20 }, (_, i) => ({
       response_time: 15 + Math.sin(i / 3) * 5 + Math.random() * 2,
-      is_up: 1
+      is_up: 1,
+      created_at: new Date(Date.now() - (20 - i) * 60000).toISOString()
     }));
     return (
       <div className="h-full w-full relative overflow-hidden group">
         <div className="absolute inset-0 opacity-10 grayscale group-hover:opacity-20 transition-opacity">
-          <LatencyChart data={dummyData as any} color={color} />
+          <LatencyChart data={dummyData as any} isUp={isUp} />
         </div>
         <div className="h-full flex flex-col items-center justify-center gap-2 relative z-10">
           <Activity className="size-6 animate-pulse text-primary/60" />
@@ -49,43 +65,63 @@ const LatencyChart = ({ data, color = "#5551FF" }: { data: Ping[], color?: strin
       </div>
     );
   }
-  
-  const points = data.map(p => p.response_time);
-  const max = Math.max(...points, 20);
-  const min = Math.min(...points);
-  const range = (max - min) || 20;
-  const step = 100 / (data.length - 1);
-  
-  const pathData = data.map((p, i) => {
-    const x = i * step;
-    const y = 90 - ((p.response_time - min) / range * 80); 
-    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-  }).join(' ');
 
-  const areaData = `${pathData} L 100 100 L 0 100 Z`;
-  const gradId = `grad-details-${Math.random().toString(36).substr(2, 9)}`;
+  const chartData = data.map(p => ({
+    time: new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    latency: p.response_time,
+    status: p.is_up === 1 ? 'Up' : 'Down'
+  }));
+
+  const chartConfig = {
+    latency: {
+      label: "Latency",
+      color: isUp ? "hsl(var(--primary))" : "hsl(var(--destructive))",
+    },
+  };
+
+  const strokeColor = isUp ? "var(--primary)" : "#f43f5e";
+  const fillColor = isUp ? "var(--primary)" : "#f43f5e";
 
   return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible group">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.15" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaData} fill={`url(#${gradId})`} className="transition-all duration-1000" />
-      <path d={pathData} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-1000" />
-      {data.map((p, i) => (
-        <circle 
-          key={i} 
-          cx={i * step} 
-          cy={90 - ((p.response_time - min) / range * 80)} 
-          r="0.8" 
-          fill={p.is_up ? color : "#f43f5e"} 
-          className="opacity-0 group-hover:opacity-100 transition-opacity duration-300" 
+    <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
+      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+        <defs>
+          <linearGradient id="latencyGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={fillColor} stopOpacity={0.3} />
+            <stop offset="95%" stopColor={fillColor} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid 
+          vertical={false} 
+          strokeDasharray="3 3" 
+          stroke="currentColor" 
+          className="opacity-[0.03] dark:opacity-[0.05]" 
         />
-      ))}
-    </svg>
+        <XAxis 
+          dataKey="time" 
+          hide 
+        />
+        <YAxis 
+          tickLine={false} 
+          axisLine={false} 
+          tick={false}
+          domain={['auto', 'auto']}
+        />
+        <ChartTooltip
+          cursor={{ stroke: strokeColor, strokeWidth: 1, strokeDasharray: '4 4' }}
+          content={<ChartTooltipContent hideLabel indicator="dot" />}
+        />
+        <Area
+          type="monotone"
+          dataKey="latency"
+          stroke={strokeColor}
+          strokeWidth={2}
+          fillOpacity={1}
+          fill="url(#latencyGradient)"
+          animationDuration={1500}
+        />
+      </AreaChart>
+    </ChartContainer>
   );
 };
 
@@ -98,17 +134,36 @@ export default function MonitorDetails() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchMonitor = async (silent = false) => {
+    if (!id || id === ':id') {
+      setError('Invalid monitor selection. Please return to the registry.');
+      setLoading(false);
+      return;
+    }
+
     if (!silent) setLoading(true);
     else setIsRefreshing(true);
     
     try {
-      const token = localStorage.getItem('token');
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token || localStorage.getItem('token');
+      if (!token) {
+        navigate('/auth');
+        return;
+      }
+
       const res = await fetch(`/api/monitors/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch monitor');
-      setMonitor(data);
+      
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        navigate('/auth');
+        return;
+      }
+
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error || 'Failed to fetch monitor');
+      setMonitor(payload);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -118,9 +173,30 @@ export default function MonitorDetails() {
   };
 
   useEffect(() => {
-    fetchMonitor();
-    const interval = setInterval(() => fetchMonitor(true), 15000);
-    return () => clearInterval(interval);
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      const token = data.session?.access_token || localStorage.getItem('token');
+      if (token) fetchMonitor();
+      else navigate('/auth');
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const token = session?.access_token || localStorage.getItem('token');
+      if (token) fetchMonitor(true);
+      else navigate('/auth');
+    });
+
+    const interval = setInterval(() => {
+      fetchMonitor(true);
+    }, 15000);
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+      clearInterval(interval);
+    };
   }, [id]);
 
   if (loading) return (
@@ -144,6 +220,8 @@ export default function MonitorDetails() {
       </button>
     </div>
   );
+
+  const recentPings = monitor?.recent_pings || [];
 
   return (
     <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-700">
@@ -199,7 +277,7 @@ export default function MonitorDetails() {
               <button onClick={() => fetchMonitor(true)} className="p-3 bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/10 rounded-xl text-ink/70 hover:text-primary transition-all shadow-sm">
                  <RefreshCw className={cn("size-3.5", isRefreshing && "animate-spin text-primary")} />
               </button>
-              <Link to={`/monitors/edit/${monitor.id}`} className="px-6 py-3 bg-primary text-white rounded-xl font-bold text-[9px] uppercase tracking-widest hover:translate-y-[-1px] transition-all shadow-lg shadow-primary/20 italic">
+              <Link to={`/app/monitors/${monitor.id}/edit`} className="px-6 py-3 bg-primary text-white rounded-xl font-bold text-[9px] uppercase tracking-widest hover:translate-y-[-1px] transition-all shadow-lg shadow-primary/20 italic">
                  Edit Node
               </Link>
            </div>
@@ -221,7 +299,7 @@ export default function MonitorDetails() {
                    max={100} 
                    unit="%" 
                    label="Uptime SLA" 
-                   colorClass="text-emerald-500"
+                   colorClass="emerald"
                    className="w-full"
                  />
                  <p className="text-[8px] text-ink/40 italic text-center -mt-2 pb-2">Target stability threshold: 99.9%</p>
@@ -237,7 +315,7 @@ export default function MonitorDetails() {
                    max={1000} 
                    unit="ms" 
                    label="Latency" 
-                   colorClass="text-primary"
+                   colorClass="primary"
                    className="w-full"
                  />
                  <p className="text-[8px] text-ink/40 italic text-center -mt-2 pb-2">RTT verified via global registry.</p>
@@ -273,14 +351,9 @@ export default function MonitorDetails() {
                      </div>
                   </div>
                </div>
-               <div className="h-56 w-full relative">
-                  <LatencyChart data={monitor.recent_pings} color={monitor.current_is_up === 1 ? "#5551FF" : "#f43f5e"} />
-                  <div className="absolute inset-0 grid grid-rows-4 pointer-events-none opacity-5">
-                     {[...Array(5)].map((_, i) => (
-                       <div key={i} className="border-t border-line dark:border-white/10 w-full" />
-                     ))}
-                  </div>
-               </div>
+                <div className="h-64 w-full relative">
+                  <LatencyChart data={recentPings} isUp={monitor.current_is_up === 1} />
+                </div>
             </div>
 
             {/* Node Event History */}
@@ -292,7 +365,7 @@ export default function MonitorDetails() {
                   <span className="text-[9px] font-bold text-ink/70 uppercase tracking-widest italic">Live Registry Activity</span>
                </div>
                <div className="space-y-3">
-                  {monitor.recent_pings.slice(0, 6).map((ping, i) => (
+                  {recentPings.slice(0, 6).map((ping, i) => (
                     <div key={i} className="flex items-center justify-between p-5 bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/5 rounded-2xl hover:bg-base dark:hover:bg-panel/[0.03] transition-all group shadow-sm">
                        <div className="flex items-center gap-5">
                           <div className={cn(
@@ -369,7 +442,7 @@ export default function MonitorDetails() {
                          max={100}
                          unit="%"
                          label="Stability"
-                         colorClass="text-emerald-500"
+                         colorClass="emerald"
                        />
                     </div>
                     <div className="space-y-1">

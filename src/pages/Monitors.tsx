@@ -7,6 +7,7 @@ import {
   ExternalLink, Info, Activity as PulseIcon
 } from 'lucide-react';
 import { cn } from '../components/Layout';
+import { supabase } from '../supabase/client';
 
 interface Monitor {
   id: string;
@@ -47,12 +48,23 @@ export default function Monitors() {
     if (!silent) setLoading(true);
     else setIsRefreshing(true);
     try {
-      const token = localStorage.getItem('token');
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token || localStorage.getItem('token');
+      if (!token) return;
       const res = await fetch('/api/monitors', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await res.json();
-      setMonitors(data);
+      
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/auth';
+        return;
+      }
+      
+      if (res.ok) {
+        const data = await res.json();
+        setMonitors(Array.isArray(data) ? data : []);
+      }
     } catch (error) {
       console.error('Failed to fetch monitors', error);
     } finally {
@@ -62,9 +74,30 @@ export default function Monitors() {
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(() => fetchData(true), 15000);
-    return () => clearInterval(interval);
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      const token = data.session?.access_token || localStorage.getItem('token');
+      if (token) fetchData();
+      else navigate('/auth');
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const token = session?.access_token || localStorage.getItem('token');
+      if (token) fetchData(true);
+      else navigate('/auth');
+    });
+
+    const interval = setInterval(() => {
+      fetchData(true);
+    }, 15000);
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+      clearInterval(interval);
+    };
   }, []);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -72,7 +105,9 @@ export default function Monitors() {
     e.stopPropagation();
     if (!confirm('Are you sure you want to decommission this monitor node?')) return;
     try {
-      const token = localStorage.getItem('token');
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token || localStorage.getItem('token');
+      if (!token) return;
       await fetch(`/api/monitors/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -216,7 +251,7 @@ export default function Monitors() {
                   <td className="px-8 py-8 text-right">
                      <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-0 translate-x-4">
                        <Link 
-                          to={`/monitors/${monitor.id}/edit`} 
+                          to={`/app/monitors/${monitor.id}/edit`} 
                           onClick={(e) => e.stopPropagation()}
                           className="p-3 rounded-xl bg-line/10 text-ink/60 hover:text-primary transition-all"
                        >

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, ReactNode } from "react"
 
 export type Theme = "dark" | "light" | "system"
 
@@ -20,7 +20,7 @@ export function ThemeProvider({
     storageKey = "netpulse-theme",
     ...props
 }: {
-    children: React.ReactNode
+    children: ReactNode
     defaultTheme?: Theme
     storageKey?: string
 }) {
