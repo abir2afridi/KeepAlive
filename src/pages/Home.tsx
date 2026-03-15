@@ -10,6 +10,7 @@ import {
 import { motion, useScroll, useTransform, useSpring, useInView } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -152,13 +153,20 @@ export default function Home() {
                    <div className="text-[60px] font-black text-white/5 uppercase tracking-tighter leading-none">Matrix Active</div>
                 </div>
 
-                <div className="absolute inset-0 flex items-center justify-center opacity-40">
-                   <div className="size-[600px] border border-white/5 rounded-full flex items-center justify-center">
-                      <div className="size-[400px] border border-white/10 rounded-full animate-pulse" />
-                      <div className="absolute size-[2px] bg-white animate-ping" style={{ top: '30%', left: '40%' }} />
-                      <div className="absolute size-[2px] bg-white animate-ping" style={{ top: '60%', left: '70%', animationDelay: '1s' }} />
-                   </div>
-                </div>
+                 <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="size-[600px] border border-white/5 rounded-full flex items-center justify-center relative overflow-hidden">
+                       <div className="absolute inset-0 opacity-40">
+                          <DotLottieReact
+                            src="https://lottie.host/bc052365-b01f-4ab1-9044-bf03f6175d39/tbiDqt566u.lottie"
+                            loop
+                            autoplay
+                          />
+                       </div>
+                       <div className="size-[400px] border border-white/10 rounded-full animate-pulse relative z-10" />
+                       <div className="absolute size-[2px] bg-white animate-ping" style={{ top: '30%', left: '40%' }} />
+                       <div className="absolute size-[2px] bg-white animate-ping" style={{ top: '60%', left: '70%', animationDelay: '1s' }} />
+                    </div>
+                 </div>
              </div>
           </div>
         </section>
