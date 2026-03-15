@@ -79,6 +79,18 @@ export default function Dashboard() {
   const [authReady, setAuthReady] = useState(false);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // Helper function to safely get numeric values
+  const getSafeValue = (value: any, defaultValue: number = 0): number => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : defaultValue;
+    }
+    return defaultValue;
+  };
   // ─── Hydration from LocalStorage ──────────────────────────────────────────
   useEffect(() => {
     const savedMonitors = localStorage.getItem('ka_monitors');
@@ -122,7 +134,18 @@ export default function Dashboard() {
         const statsData = await statsRes.json();
         
         const validMonitors = Array.isArray(monitorsData) ? monitorsData : [];
-        const validStats = statsData || { total_monitors: 0, overall_uptime: 0, avg_response_time: 0 };
+        // Handle both old and new API response structures
+        const validStats = statsData.total_monitors !== undefined 
+          ? {
+              total_monitors: validMonitors.length, // ✅ Sync with actual monitors
+              overall_uptime: statsData.overall_uptime || 0,
+              avg_response_time: statsData.avg_response_time || 0
+            }
+          : {
+              total_monitors: validMonitors.length, // ✅ Sync with actual monitors
+              overall_uptime: 0,
+              avg_response_time: 0
+            };
         
         setMonitors(validMonitors);
         setStats(validStats);
@@ -235,7 +258,7 @@ export default function Dashboard() {
         <div className="bg-panel border border-line/40 p-6 rounded-3xl shadow-sm hover:translate-y-[-2px] transition-all flex flex-col items-center justify-center relative overflow-hidden group">
            <div className="absolute top-4 right-4 text-[8px] font-black text-emerald-500/40 uppercase tracking-widest italic">Stable</div>
            <AnalogMeter 
-             value={stats.overall_uptime} 
+             value={getSafeValue(stats.overall_uptime)} 
              max={100} 
              unit="%" 
              label="Global Uptime" 
@@ -248,7 +271,7 @@ export default function Dashboard() {
         <div className="bg-panel border border-line/40 p-6 rounded-3xl shadow-sm hover:translate-y-[-2px] transition-all flex flex-col items-center justify-center relative overflow-hidden group">
            <div className="absolute top-4 right-4 text-[8px] font-black text-blue-500/40 uppercase tracking-widest italic">Optimized</div>
            <AnalogMeter 
-             value={stats.avg_response_time} 
+             value={getSafeValue(stats.avg_response_time)} 
              max={500} 
              unit="ms" 
              label="Avg Latency" 
@@ -335,7 +358,7 @@ export default function Dashboard() {
                         <span className="text-[8px] font-bold uppercase tracking-widest opacity-50 relative z-20">Stability Index</span>
                      </div>
                      <AnalogMeter 
-                       value={stats.overall_uptime} 
+                       value={getSafeValue(stats.overall_uptime)} 
                        min={0} 
                        max={100} 
                        unit="%" 

@@ -148,7 +148,20 @@ export default function StatusPage() {
     );
   }
 
-  const allOperational = monitors.length > 0 && monitors.every(m => m.current_is_up === 1);
+  const getMonitorStatus = (monitor: Monitor) => {
+    // Handle different possible status fields
+    if (monitor.current_is_up !== undefined) {
+      return monitor.current_is_up === 1;
+    }
+    // Fallback to checking if uptime is available and > 0
+    if ((monitor as any).uptime !== undefined) {
+      return (monitor as any).uptime > 0;
+    }
+    // Default to operational if no status data
+    return true;
+  };
+
+  const allOperational = monitors.length > 0 && monitors.every(m => getMonitorStatus(m));
 
   return (
     <div className="min-h-screen bg-base dark:bg-background-dark font-sans text-ink dark:text-ink/70 transition-colors duration-500">
@@ -242,7 +255,9 @@ export default function StatusPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {monitors.map((monitor) => (
+            {monitors.map((monitor) => {
+              const isMonitorUp = getMonitorStatus(monitor);
+              return (
               <Link 
                 key={monitor.id}
                 to={`/status/${slug}/monitors/${monitor.id}`}
@@ -254,13 +269,13 @@ export default function StatusPage() {
                           <h4 className="text-2xl font-bold tracking-tight text-ink group-hover:text-primary transition-colors uppercase italic truncate">{monitor.name}</h4>
                           <div className={cn(
                             "size-2 rounded-full shrink-0",
-                            monitor.current_is_up === 1 ? "bg-emerald-500 shadow-sm animate-pulse" : "bg-rose-500 shadow-sm shadow-rose-500/50"
+                            isMonitorUp ? "bg-emerald-500 shadow-sm animate-pulse" : "bg-rose-500 shadow-sm shadow-rose-500/50"
                           )} />
                        </div>
                        <div className="flex items-center gap-2 text-[10px] font-bold text-ink/70 uppercase tracking-widest italic truncate">
                          <Globe className="size-3.5" /> {monitor.url.replace(/^https?:\/\//, '').split('/')[0]}
                        </div>
-                       {monitor.current_is_up === 0 && monitor.last_error_message && (
+                       {!isMonitorUp && monitor.last_error_message && (
                          <div className="text-[9px] text-rose-500 font-bold block italic uppercase tracking-tighter mt-1 bg-rose-500/5 px-2 py-1 rounded-lg border border-rose-500/10 w-fit">
                            FAULT: {monitor.last_error_message}
                          </div>
@@ -314,15 +329,16 @@ export default function StatusPage() {
                       </div>
                       <div className="space-y-1">
                         <span className="text-[9px] font-bold text-ink/70 uppercase tracking-widest block italic">Status</span>
-                        <span className={cn("text-xs font-black italic", monitor.current_is_up === 1 ? "text-emerald-500" : "text-rose-500")}>
-                          {monitor.current_is_up === 1 ? 'OPERATIONAL' : 'DEGRADED'}
+                        <span className={cn("text-xs font-black italic", isMonitorUp ? "text-emerald-500" : "text-rose-500")}>
+                          {isMonitorUp ? 'OPERATIONAL' : 'DEGRADED'}
                         </span>
                       </div>
                     </div>
                     <ChevronRight className="size-4 text-ink/20 group-hover:text-primary group-hover:translate-x-1 transition-all" />
                  </div>
               </Link>
-            ))}
+            );
+            })}
 
             {monitors.length === 0 && (
               <div className="col-span-full py-24 text-center rounded-[32px] border-2 border-dashed border-line dark:border-white/10 space-y-4">

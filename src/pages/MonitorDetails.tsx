@@ -83,7 +83,7 @@ const LatencyChart = ({ data, isUp = true }: { data: Ping[], isUp?: boolean }) =
   const fillColor = isUp ? "var(--primary)" : "#f43f5e";
 
   return (
-    <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
+    <ChartContainer config={chartConfig} className="h-full w-full min-h-[200px] aspect-auto">
       <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
         <defs>
           <linearGradient id="latencyGradient" x1="0" y1="0" x2="0" y2="1">
@@ -132,6 +132,18 @@ export default function MonitorDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Helper function to safely get numeric values
+  const getSafeValue = (value: any, defaultValue: number = 0): number => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : defaultValue;
+    }
+    return defaultValue;
+  };
 
   const fetchMonitor = async (silent = false) => {
     if (!id || id === ':id') {
@@ -351,7 +363,7 @@ export default function MonitorDetails() {
                      </div>
                   </div>
                </div>
-                <div className="h-64 w-full relative">
+                <div className="h-64 w-full relative min-h-[200px]">
                   <LatencyChart data={recentPings} isUp={monitor.current_is_up === 1} />
                 </div>
             </div>
@@ -437,7 +449,7 @@ export default function MonitorDetails() {
                   <div className="space-y-6">
                     <div className="-mx-2 -mt-4 mb-2 relative scale-[0.85] origin-top">
                        <AnalogMeter 
-                         value={monitor.uptime_percent}
+                         value={getSafeValue(monitor.uptime_percent)}
                          min={0}
                          max={100}
                          unit="%"

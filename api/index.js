@@ -179,11 +179,12 @@ module.exports = async function handler(req, res) {
     if (pathname === '/api/monitors' && method === 'GET') {
       const user = await verifyAuth(req);
 
-      // Get all monitors for the user
+      // Get all active monitors for the user
       const { data: monitors } = await supabase
         .from('monitors')
         .select('*')
         .eq('user_id', user.id)
+        .eq('status', 'active') // ✅ Only return active monitors
         .order('created_at', { ascending: false });
 
       return res.status(200).json({ monitors });
@@ -192,7 +193,18 @@ module.exports = async function handler(req, res) {
     // Route: POST /api/monitors
     if (pathname === '/api/monitors' && method === 'POST') {
       const user = await verifyAuth(req);
-      const { name, url: monitorUrl, type, interval, timeout } = req.body;
+      const { 
+        name, 
+        url: monitorUrl, 
+        type, 
+        interval, 
+        timeout,
+        method,
+        body,
+        port,
+        headers,
+        alert_config
+      } = req.body;
 
       const { data: monitor } = await supabase
         .from('monitors')
@@ -203,6 +215,11 @@ module.exports = async function handler(req, res) {
           type: type || 'http',
           interval: interval || 60,
           timeout: timeout || 30,
+          method: method || 'GET',
+          body: body || '',
+          port: port || 80,
+          headers: headers || '{}',
+          alert_config: alert_config || '{}',
           status: 'active',
           created_at: new Date().toISOString()
         })
@@ -212,15 +229,129 @@ module.exports = async function handler(req, res) {
       return res.status(201).json({ monitor });
     }
 
+    // Route: GET /api/monitors/:id
+    if (pathname.startsWith('/api/monitors/') && method === 'GET') {
+      const user = await verifyAuth(req);
+      const monitorId = pathname.split('/').pop();
+
+      // Get monitor details
+      const { data: monitor } = await supabase
+        .from('monitors')
+        .select('*')
+        .eq('id', monitorId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (!monitor) {
+        return res.status(404).json({ error: 'Monitor not found' });
+      }
+
+      // Get recent pings for this monitor
+      const { data: pings } = await supabase
+        .from('pings')
+        .select('*')
+        .eq('monitor_id', monitorId)
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      // Calculate uptime percentage
+      const totalPings = pings?.length || 0;
+      const successfulPings = pings?.filter(p => p.status === 'success').length || 0;
+      const uptimePercent = totalPings > 0 ? (successfulPings / totalPings * 100) : 0;
+
+      // Calculate average response time
+      const responseTimes = pings?.filter(p => p.status === 'success' && p.response_time).map(p => p.response_time) || [];
+      const avgResponseTime = responseTimes.length > 0 
+        ? (responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length)
+        : 0;
+
+      // Get current status
+      const currentPing = pings?.[0];
+      const currentIsUp = currentPing?.status === 'success' ? 1 : 0;
+      const lastResponseTime = currentPing?.response_time || 0;
+      const lastErrorMessage = currentPing?.error_message;
+
+      return res.status(200).json({
+        ...monitor,
+        uptime_percent: uptimePercent,
+        avg_response_time: avgResponseTime,
+        current_is_up: currentIsUp,
+        last_response_time: lastResponseTime,
+        last_error_message: lastErrorMessage,
+        recent_pings: pings?.map(ping => ({
+          response_time: ping.response_time,
+          is_up: ping.status === 'success' ? 1 : 0,
+          error_message: ping.error_message,
+          created_at: ping.created_at
+        })) || []
+      });
+    }
+
+    // Route: PUT /api/monitors/:id
+    if (pathname.startsWith('/api/monitors/') && method === 'PUT') {
+      const user = await verifyAuth(req);
+      const monitorId = pathname.split('/').pop();
+      const { 
+        name, 
+        url: monitorUrl, 
+        type, 
+        interval, 
+        timeout,
+        method,
+        body,
+        port,
+        headers,
+        alert_config
+      } = req.body;
+
+      const { data: monitor } = await supabase
+        .from('monitors')
+        .update({
+          name,
+          url: monitorUrl,
+          type: type || 'http',
+          interval: interval || 60,
+          timeout: timeout || 30,
+          method: method || 'GET',
+          body: body || '',
+          port: port || 80,
+          headers: headers || '{}',
+          alert_config: alert_config || '{}',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', monitorId)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      return res.status(200).json({ monitor });
+    }
+
+    // Route: DELETE /api/monitors/:id
+    if (pathname.startsWith('/api/monitors/') && method === 'DELETE') {
+      const user = await verifyAuth(req);
+      const monitorId = pathname.split('/').pop();
+
+      await supabase
+        .from('monitors')
+        .delete()
+        .eq('id', monitorId)
+        .eq('user_id', user.id);
+
+      return res.status(204).send();
+    }
+
     // Route: GET /api/stats
     if (pathname === '/api/stats' && method === 'GET') {
       const user = await verifyAuth(req);
 
-      // Get monitor stats
+      // Get monitor stats - only active monitors
       const { data: monitors } = await supabase
         .from('monitors')
         .select('status')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .eq('status', 'active'); // ✅ Only count active monitors
 
       const totalMonitors = monitors?.length || 0;
       const activeMonitors = monitors?.filter(m => m.status === 'active').length || 0;
@@ -229,7 +360,7 @@ module.exports = async function handler(req, res) {
       // Get ping stats (simplified)
       const { data: pings } = await supabase
         .from('pings')
-        .select('status')
+        .select('status, response_time')
         .eq('user_id', user.id)
         .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()); // Last 7 days
 
@@ -238,7 +369,17 @@ module.exports = async function handler(req, res) {
       const failedPings = totalPings - successfulPings;
       const uptime = totalPings > 0 ? (successfulPings / totalPings * 100).toFixed(2) : 0;
 
+      // Calculate average response time
+      const responseTimes = pings?.filter(p => p.status === 'success' && p.response_time).map(p => p.response_time) || [];
+      const avgResponseTime = responseTimes.length > 0 
+        ? (responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length).toFixed(2)
+        : 0;
+
       return res.status(200).json({
+        total_monitors: totalMonitors,
+        overall_uptime: parseFloat(uptime),
+        avg_response_time: parseFloat(avgResponseTime),
+        // Also include the detailed structure for compatibility
         stats: {
           monitors: {
             total: totalMonitors,
@@ -290,9 +431,9 @@ module.exports = async function handler(req, res) {
       return res.status(201).json({ alert });
     }
 
-    // Route: GET /api/public-status
-    if (pathname === '/api/public-status' && method === 'GET') {
-      const { slug } = url.searchParams;
+    // Route: GET /api/public-status/{slug}
+    if (pathname.startsWith('/api/public-status/') && method === 'GET') {
+      const slug = pathname.split('/').pop();
 
       if (!slug) {
         return res.status(400).json({ error: 'Missing slug parameter' });
@@ -322,7 +463,7 @@ module.exports = async function handler(req, res) {
         monitors?.map(async (monitor) => {
           const { data: pings } = await supabase
             .from('pings')
-            .select('status, created_at')
+            .select('status, created_at, response_time')
             .eq('monitor_id', monitor.id)
             .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
             .order('created_at', { ascending: false })
@@ -332,11 +473,32 @@ module.exports = async function handler(req, res) {
           const successfulPings = pings?.filter(p => p.status === 'success').length || 0;
           const uptime = totalPings > 0 ? (successfulPings / totalPings * 100).toFixed(2) : 0;
 
+          // Calculate average response time
+          const responseTimes = pings?.filter(p => p.status === 'success' && p.response_time).map(p => p.response_time) || [];
+          const avgResponseTime = responseTimes.length > 0 
+            ? (responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length).toFixed(2)
+            : 0;
+
+          // Get current status
+          const currentPing = pings?.[0];
+          const currentIsUp = currentPing?.status === 'success' ? 1 : 0;
+          const lastChecked = currentPing?.created_at || null;
+
           return {
             ...monitor,
-            uptime: parseFloat(uptime),
+            uptime_percent: parseFloat(uptime), // ✅ Match frontend expectation
+            avg_response_time: parseFloat(avgResponseTime), // ✅ Add missing field
+            current_is_up: currentIsUp, // ✅ Add current status
+            last_checked: lastChecked, // ✅ Add last checked time
+            uptime: parseFloat(uptime), // ✅ Keep for backward compatibility
             total_pings: totalPings,
-            successful_pings: successfulPings
+            successful_pings: successfulPings,
+            recent_pings: pings?.map(ping => ({
+              response_time: ping.response_time || 0,
+              is_up: ping.status === 'success' ? 1 : 0,
+              created_at: ping.created_at,
+              error_message: ping.status === 'failed' ? 'Connection failed' : undefined
+            })) || []
           };
         }) || []
       );

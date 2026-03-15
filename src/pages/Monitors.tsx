@@ -93,12 +93,20 @@ export default function Monitors() {
       fetchData(true);
     }, 15000);
 
+    const handleVisibilityChange = () => {
+      if (!document.hidden && mounted) {
+        fetchData(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [navigate, searchQuery]);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();

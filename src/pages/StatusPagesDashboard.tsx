@@ -59,7 +59,7 @@ const LatencyChart = ({ data, color = "#5551FF" }: { data: { response_time: numb
   };
 
   return (
-    <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
+    <ChartContainer config={chartConfig} className="h-full w-full min-h-[150px] aspect-auto">
       <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="latencyGradientDashboard" x1="0" y1="0" x2="0" y2="1">
@@ -101,6 +101,18 @@ export default function StatusPagesDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'incidents' | 'analytics'>('overview');
 
   const fullUrl = `${window.location.origin}/status/${statusSlug}`;
+
+  // Helper function to safely get numeric values
+  const getSafeValue = (value: any, defaultValue: number = 0): number => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : defaultValue;
+    }
+    return defaultValue;
+  };
 
   const formatTime = (dateStr: string | null) => {
     if (!dateStr) return 'Never';
@@ -149,8 +161,8 @@ export default function StatusPagesDashboard() {
   };
 
   const totalMonitors = monitors.length;
-  const avgUptime = monitors.length > 0 ? monitors.reduce((acc, m) => acc + (m.uptime_percent || 0), 0) / monitors.length : 0;
-  const avgLatency = monitors.length > 0 ? monitors.reduce((acc, m) => acc + (m.avg_response_time || 0), 0) / monitors.length : 0;
+  const avgUptime = monitors.length > 0 ? monitors.reduce((acc, m) => acc + getSafeValue(m.uptime_percent), 0) / monitors.length : 0;
+  const avgLatency = monitors.length > 0 ? monitors.reduce((acc, m) => acc + getSafeValue(m.avg_response_time), 0) / monitors.length : 0;
 
   return (
     <div className="max-w-7xl mx-auto space-y-12">
@@ -342,7 +354,7 @@ export default function StatusPagesDashboard() {
                                 </div>
                              </div>
 
-                             <div className="h-20 w-full mb-8">
+                             <div className="h-20 w-full mb-8 min-h-[80px]">
                                <LatencyChart 
                                  data={monitor.recent_pings?.slice(-20) || []} 
                                  color={monitor.current_is_up === 1 ? "#10b981" : "#f43f5e"}

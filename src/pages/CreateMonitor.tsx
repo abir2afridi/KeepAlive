@@ -132,8 +132,12 @@ export default function CreateMonitor() {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Failed to save configuration');
+      
+      // Success! Navigate back to monitors list
+      console.log('Monitor saved successfully:', result);
       navigate('/app/monitors');
     } catch (err: any) {
+      console.error('Failed to save monitor:', err);
       setError(err.message);
     } finally {
       setSaveLoading(false);
