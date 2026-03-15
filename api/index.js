@@ -11,10 +11,10 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl || '', supabaseServiceKey || '');
 const supabaseAdmin = supabase;
 
-console.log('Supabase initialized:', {
+console.log('Supabase initialization status:', {
   hasUrl: !!supabaseUrl,
   hasServiceKey: !!supabaseServiceKey,
-  urlStart: supabaseUrl ? supabaseUrl.substring(0, 10) : 'none'
+  url: supabaseUrl ? supabaseUrl.substring(0, 20) + '...' : 'none'
 });
 
 // Authentication middleware
@@ -40,6 +40,7 @@ const verifyAuth = async (req) => {
       .eq('id', user.id)
       .single();
 
+    console.log('User verified:', { id: user.id, email: user.email, isAdmin: !!dbUser });
     return dbUser || {
       id: user.id,
       email: user.email || '',
@@ -48,7 +49,7 @@ const verifyAuth = async (req) => {
       status_slug: null
     };
   } catch (error) {
-    console.error('Auth error:', error);
+    console.error('Auth verification failed:', error.message);
     throw new Error('Invalid token');
   }
 };
@@ -71,7 +72,14 @@ module.exports = async function handler(req, res) {
   try {
     // Route: GET /api/test
     if (pathname === '/api/test' && method === 'GET') {
-      return res.status(200).json({ message: 'API is working!', timestamp: new Date().toISOString() });
+      return res.status(200).json({ 
+        message: 'API is working!', 
+        timestamp: new Date().toISOString(),
+        env: {
+          hasUrl: !!supabaseUrl,
+          hasKey: !!supabaseServiceKey
+        }
+      });
     }
 
     // Route: GET /api/auth/debug
@@ -211,8 +219,9 @@ module.exports = async function handler(req, res) {
         .from('monitors')
         .select('*')
         .eq('user_id', user.id)
-        .eq('status', 'active') // ✅ Only return active monitors
         .order('created_at', { ascending: false });
+
+      console.log(`Monitors found for user ${user.id}:`, monitors?.length || 0);
 
       if (monitorError) {
         console.error('Error fetching monitors:', monitorError);
@@ -252,7 +261,7 @@ module.exports = async function handler(req, res) {
           port: port || 80,
           headers: headers || '{}',
           alert_config: alert_config || '{}',
-          status: 'active',
+          status: 'unknown',
           created_at: new Date().toISOString()
         })
         .select()
