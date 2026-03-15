@@ -28,32 +28,67 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { payload } = await jwtVerify(token, jwks, {
-      issuer: `${supabaseUrl}/auth/v1`,
-      audience: 'authenticated',
-      clockTolerance: 30,
-    });
+    // Try to get user from Supabase auth first (for Google OAuth tokens)
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      // If getUser fails, try JWT verification as fallback
+      try {
+        const { payload } = await jwtVerify(token, jwks, {
+          issuer: `${supabaseUrl}/auth/v1`,
+          audience: 'authenticated',
+          clockTolerance: 30,
+        });
 
-    const userId = String(payload.sub || '');
-    const email = typeof payload.email === 'string' ? payload.email : '';
+        const userId = String(payload.sub || '');
+        const email = typeof payload.email === 'string' ? payload.email : '';
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Invalid token - missing user ID' });
+        if (!userId) {
+          return res.status(401).json({ error: 'Invalid token - missing user ID' });
+        }
+
+        // Get user from database
+        const { data: dbUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        return res.status(200).json({ 
+          user: dbUser || { 
+            id: userId, 
+            email, 
+            plan: 'free',
+            name: email.split('@')[0],
+            status_slug: null
+          } 
+        });
+      } catch (jwtError: any) {
+        console.error('Auth error (JWT):', jwtError);
+        return res.status(401).json({ 
+          error: 'Invalid token',
+          details: jwtError.message 
+        });
+      }
     }
 
+    // Use user info from Supabase auth
+    const userId = user.id;
+    const email = user.email || '';
+
     // Get user from database
-    const { data: user } = await supabase
+    const { data: dbUser } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single();
 
     return res.status(200).json({ 
-      user: user || { 
+      user: dbUser || { 
         id: userId, 
         email, 
         plan: 'free',
-        name: email.split('@')[0],
+        name: user.user_metadata?.full_name || email.split('@')[0],
         status_slug: null
       } 
     });

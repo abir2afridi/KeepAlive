@@ -28,33 +28,72 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { payload } = await jwtVerify(token, jwks, {
-      issuer: `${supabaseUrl}/auth/v1`,
-      audience: 'authenticated',
-      clockTolerance: 30,
-    });
+    // For Google OAuth tokens, we need to get the user info from the token
+    // Since we can't verify Google OAuth tokens server-side easily,
+    // we'll use the Supabase admin client to get user info
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      // If getUser fails, try JWT verification as fallback
+      try {
+        const { payload } = await jwtVerify(token, jwks, {
+          issuer: `${supabaseUrl}/auth/v1`,
+          audience: 'authenticated',
+          clockTolerance: 30,
+        });
 
-    const userId = String(payload.sub || '');
-    const email = typeof payload.email === 'string' ? payload.email : '';
+        const userId = String(payload.sub || '');
+        const email = typeof payload.email === 'string' ? payload.email : '';
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Invalid token - missing user ID' });
+        if (!userId) {
+          return res.status(401).json({ error: 'Invalid token - missing user ID' });
+        }
+
+        // Ensure user exists in database
+        await supabase
+          .from('users')
+          .upsert({ id: userId, email }, { onConflict: 'id' });
+
+        const userData = { 
+          id: userId, 
+          email, 
+          plan: 'free',
+          name: email.split('@')[0],
+          status_slug: null
+        };
+
+        return res.status(200).json({ user: userData });
+      } catch (jwtError: any) {
+        console.error('Auth sync error (JWT):', jwtError);
+        return res.status(401).json({ 
+          error: 'Invalid token',
+          details: jwtError.message 
+        });
+      }
     }
+
+    // Use user info from Supabase auth
+    const userId = user.id;
+    const email = user.email || '';
 
     // Ensure user exists in database
     await supabase
       .from('users')
-      .upsert({ id: userId, email }, { onConflict: 'id' });
+      .upsert({ 
+        id: userId, 
+        email, 
+        name: user.user_metadata?.full_name || email.split('@')[0]
+      }, { onConflict: 'id' });
 
-    const user = { 
+    const userData = { 
       id: userId, 
       email, 
       plan: 'free',
-      name: email.split('@')[0],
+      name: user.user_metadata?.full_name || email.split('@')[0],
       status_slug: null
     };
 
-    return res.status(200).json({ user });
+    return res.status(200).json({ user: userData });
   } catch (error: any) {
     console.error('Auth sync error:', error);
     return res.status(401).json({ 
