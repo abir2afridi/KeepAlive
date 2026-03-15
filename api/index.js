@@ -207,14 +207,19 @@ module.exports = async function handler(req, res) {
       const user = await verifyAuth(req);
 
       // Get all active monitors for the user
-      const { data: monitors } = await supabase
+      const { data: monitors, error: monitorError } = await supabase
         .from('monitors')
         .select('*')
         .eq('user_id', user.id)
         .eq('status', 'active') // ✅ Only return active monitors
         .order('created_at', { ascending: false });
 
-      return res.status(200).json({ monitors });
+      if (monitorError) {
+        console.error('Error fetching monitors:', monitorError);
+        return res.status(500).json({ error: 'Failed to fetch monitors', details: monitorError.message });
+      }
+
+      return res.status(200).json({ monitors: monitors || [] });
     }
 
     // Route: POST /api/monitors
@@ -620,7 +625,12 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      const { data: monitors } = await monitorQuery.order('name');
+      const { data: monitors, error: fetchError } = await monitorQuery.order('name');
+      
+      if (fetchError) {
+        console.error('Status page monitors fetch error:', fetchError);
+        return res.status(500).json({ error: 'Failed to fetch status page monitors' });
+      }
 
       // 3. Enrich monitors with ping data
       const monitorsWithPings = await Promise.all(

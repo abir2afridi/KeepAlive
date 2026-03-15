@@ -5,35 +5,35 @@ $scope = "abir2afridi-5746s-projects"
 Write-Host "🚀 Starting deployment to Vercel project: $projId"
 
 # Environment Variables from .env.example
+# Default variables
 $vars = @{
-    # Supabase (Frontend)
-    "VITE_SUPABASE_URL" = "https://bfegwgoxeoawftxirapx.supabase.co"
-    "VITE_SUPABASE_ANON_KEY" = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmZWd3Z294ZW9hd2Z0eGlyYXB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQxMDAzMjksImV4cCI6MjA0OTY3NjMyOX0.lFQqkLVYYZVHdY7SLkAGz6l6QYxqLs9B3qKlN5xGd3Q"
-    
-    # Supabase (Server)
-    "SUPABASE_URL" = "https://bfegwgoxeoawftxirapx.supabase.co"
-    "SUPABASE_SERVICE_ROLE_KEY" = "YOUR_SERVICE_ROLE_KEY_HERE"
-    
-    # Stripe Config (SECRET - KEEP ON SERVER ONLY)
-    "STRIPE_SECRET_KEY" = "sk_test_YOUR_STRIPE_SECRET_KEY"
-    "STRIPE_WEBHOOK_SECRET" = "whsec_YOUR_WEBHOOK_SECRET"
-    
-    # App Config
-    "ENCRYPTION_KEY" = "your-32-character-encryption-key-here"
-    "JWT_SECRET" = "your-secret-here"
-    "PORT" = "3000"
     "NODE_ENV" = "production"
-    
-    # Firebase Config (from your existing script)
-    "VITE_FIREBASE_API_KEY" = "AIzaSyBKwZPzSUmpCvHTKSp4uHhoywfbPK0-F20"
-    "VITE_FIREBASE_APP_ID" = "1:780554860855:web:680e1e7ae02be7043f82b2"
-    "VITE_FIREBASE_PROJECT_ID" = "keep02alive"
-    "VITE_FIREBASE_AUTH_DOMAIN" = "keep02alive.firebaseapp.com"
-    "VITE_FIREBASE_STORAGE_BUCKET" = "keep02alive.firebasestorage.app"
-    "VITE_FIREBASE_MESSAGING_SENDER_ID" = "780554860855"
-    "VITE_FIREBASE_MEASUREMENT_ID" = "G-XFL41Y3P7Y"
-    "FIREBASE_PROJECT_ID" = "keep02alive"
-    "FIREBASE_CLIENT_EMAIL" = "firebase-adminsdk-fbsvc@keep02alive.iam.gserviceaccount.com"
+    "PORT" = "3000"
+}
+
+# Load from .env if exists
+if (Test-Path ".env") {
+    Write-Host "📂 Loading environment variables from .env"
+    Get-Content .env | ForEach-Object {
+        if ($_ -match "^([^#=]+)=(.*)$") {
+            $key = $matches[1].Trim()
+            $val = $matches[2].Trim()
+            # Remove quotes if present
+            $val = $val -replace "^['""]|['""]$", ""
+            if ($key) {
+                $vars[$key] = $val
+                Write-Host "  ➕ Found: $key"
+            }
+        }
+    }
+} else {
+    Write-Host "⚠️  .env file not found, using script defaults"
+    # Essential Supabase (Frontend)
+    $vars["VITE_SUPABASE_URL"] = "https://bfegwgoxeoawftxirapx.supabase.co"
+    $vars["VITE_SUPABASE_ANON_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmZWd3Z294ZW9hd2Z0eGlyYXB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQxMDAzMjksImV4cCI6MjA0OTY3NjMyOX0.lFQqkLVYYZVHdY7SLkAGz6l6QYxqLs9B3qKlN5xGd3Q"
+    # Essential Supabase (Server)
+    $vars["SUPABASE_URL"] = "https://bfegwgoxeoawftxirapx.supabase.co"
+    $vars["SUPABASE_SERVICE_ROLE_KEY"] = "YOUR_SERVICE_ROLE_KEY_HERE"
 }
 
 # Add Firebase Private Key if serviceAccount.json exists
