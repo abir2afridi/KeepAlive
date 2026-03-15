@@ -31,7 +31,7 @@ export default function Auth() {
         localStorage.setItem('token', token);
 
         try {
-          const res = await fetch('/auth/sync', {
+          const res = await fetch('/api/auth/sync', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -76,7 +76,7 @@ export default function Auth() {
       // Try to sync with backend
       let syncSucceeded = false;
       try {
-        const res = await fetch('/auth/sync', {
+        const res = await fetch('/api/auth/sync', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',

@@ -66,7 +66,7 @@ export default function Settings() {
     setMsg('');
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/auth/profile', {
+      const res = await fetch('/api/auth/profile', {
         method: 'PUT',
         headers: { 
           'Authorization': `Bearer ${token}`,
