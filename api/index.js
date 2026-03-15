@@ -88,22 +88,25 @@ module.exports = async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const { url, method } = req;
+  // Parse URL to get pathname properly
+  const url = new URL(req.url, 'http://localhost');
+  const pathname = url.pathname;
+  const method = req.method;
 
   try {
     // Route: GET /api/test
-    if (url === '/api/test' && method === 'GET') {
+    if (pathname === '/api/test' && method === 'GET') {
       return res.status(200).json({ message: 'API is working!', timestamp: new Date().toISOString() });
     }
 
     // Route: GET /api/auth/me
-    if (url === '/api/auth/me' && method === 'GET') {
+    if (pathname === '/api/auth/me' && method === 'GET') {
       const user = await verifyAuth(req);
       return res.status(200).json({ user });
     }
 
     // Route: POST /api/auth/sync
-    if (url === '/api/auth/sync' && method === 'POST') {
+    if (pathname === '/api/auth/sync' && method === 'POST') {
       const user = await verifyAuth(req);
       
       // Sync user data with database
@@ -146,7 +149,7 @@ module.exports = async function handler(req, res) {
     }
 
     // Route: PUT /api/auth/profile
-    if (url === '/api/auth/profile' && method === 'PUT') {
+    if (pathname === '/api/auth/profile' && method === 'PUT') {
       const user = await verifyAuth(req);
       const { name, email } = req.body;
 
@@ -166,7 +169,7 @@ module.exports = async function handler(req, res) {
     }
 
     // Route: GET /api/monitors
-    if (url === '/api/monitors' && method === 'GET') {
+    if (pathname === '/api/monitors' && method === 'GET') {
       const user = await verifyAuth(req);
 
       // Get all monitors for the user
@@ -180,7 +183,7 @@ module.exports = async function handler(req, res) {
     }
 
     // Route: POST /api/monitors
-    if (url === '/api/monitors' && method === 'POST') {
+    if (pathname === '/api/monitors' && method === 'POST') {
       const user = await verifyAuth(req);
       const { name, url: monitorUrl, type, interval, timeout } = req.body;
 
@@ -203,7 +206,7 @@ module.exports = async function handler(req, res) {
     }
 
     // Route: GET /api/stats
-    if (url === '/api/stats' && method === 'GET') {
+    if (pathname === '/api/stats' && method === 'GET') {
       const user = await verifyAuth(req);
 
       // Get monitor stats
@@ -246,7 +249,7 @@ module.exports = async function handler(req, res) {
     }
 
     // Route: GET /api/alerts
-    if (url === '/api/alerts' && method === 'GET') {
+    if (pathname === '/api/alerts' && method === 'GET') {
       const user = await verifyAuth(req);
 
       // Get all alert channels for the user
@@ -260,7 +263,7 @@ module.exports = async function handler(req, res) {
     }
 
     // Route: POST /api/alerts
-    if (url === '/api/alerts' && method === 'POST') {
+    if (pathname === '/api/alerts' && method === 'POST') {
       const user = await verifyAuth(req);
       const { name, type, config } = req.body;
 
@@ -281,8 +284,8 @@ module.exports = async function handler(req, res) {
     }
 
     // Route: GET /api/public-status
-    if (url === '/api/public-status' && method === 'GET') {
-      const { slug } = req.query;
+    if (pathname === '/api/public-status' && method === 'GET') {
+      const { slug } = url.searchParams;
 
       if (!slug) {
         return res.status(400).json({ error: 'Missing slug parameter' });
@@ -337,8 +340,8 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Default response
-    res.status(404).json({ error: 'Route not found', url, method });
+    // Default response - this should not be reached for frontend routes
+    res.status(404).json({ error: 'API route not found', pathname, method });
   } catch (error) {
     console.error('API Error:', error);
     if (error.message.includes('Unauthorized') || error.message.includes('Invalid token')) {
