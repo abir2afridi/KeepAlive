@@ -37,15 +37,41 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      const token = data.session?.access_token || localStorage.getItem('token');
-      setAuthState(token ? 'authenticated' : 'unauthenticated');
-    });
+    const checkAuth = async () => {
+      try {
+        // First check if we have a token in localStorage
+        const localToken = localStorage.getItem('token');
+        if (localToken) {
+          if (mounted) setAuthState('authenticated');
+          return;
+        }
+
+        // Then check Supabase session
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        
+        if (mounted) {
+          setAuthState(token ? 'authenticated' : 'unauthenticated');
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        if (mounted) setAuthState('unauthenticated');
+      }
+    };
+
+    checkAuth();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      const token = session?.access_token || localStorage.getItem('token');
-      setAuthState(token ? 'authenticated' : 'unauthenticated');
+      const token = session?.access_token;
+      if (token) {
+        localStorage.setItem('token', token);
+      } else {
+        localStorage.removeItem('token');
+      }
+      
+      if (mounted) {
+        setAuthState(token ? 'authenticated' : 'unauthenticated');
+      }
     });
 
     return () => {

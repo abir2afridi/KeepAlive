@@ -1,9 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
-const { createRemoteJWKSet, jwtVerify } = require('jose');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const jwks = createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`));
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -16,64 +14,29 @@ const verifyAuth = async (req) => {
   }
 
   try {
-    // Try to get user from Supabase auth first (for Google OAuth tokens)
+    // Use Supabase auth.getUser() to validate the token
     const { data: { user }, error } = await supabase.auth.getUser(token);
     
     if (error || !user) {
-      // If getUser fails, try JWT verification as fallback
-      try {
-        const { payload } = await jwtVerify(token, jwks, {
-          issuer: `${supabaseUrl}/auth/v1`,
-          audience: 'authenticated',
-          clockTolerance: 30,
-        });
-
-        const userId = String(payload.sub || '');
-        const email = typeof payload.email === 'string' ? payload.email : '';
-
-        if (!userId) {
-          throw new Error('Invalid token - missing user ID');
-        }
-
-        // Get user from database
-        const { data: dbUser } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .single();
-
-        return dbUser || { 
-          id: userId, 
-          email, 
-          plan: 'free',
-          name: email.split('@')[0],
-          status_slug: null
-        };
-      } catch (jwtError) {
-        console.error('Auth error (JWT):', jwtError);
-        throw new Error('Invalid token');
-      }
+      throw new Error('Invalid token');
     }
-
-    // Use user info from Supabase auth
-    const userId = user.id;
-    const email = user.email || '';
 
     // Get user from database
     const { data: dbUser } = await supabase
       .from('users')
       .select('*')
-      .eq('id', userId)
+      .eq('id', user.id)
       .single();
 
     return dbUser || { 
-      id: userId, 
-      email, 
+      id: user.id, 
+      email: user.email || '', 
       plan: 'free',
-      name: user.user_metadata?.full_name || email.split('@')[0],
+      name: user.user_metadata?.full_name || user.email?.split('@')[0] || '',
       status_slug: null
     };
   } catch (error) {
+    console.error('Auth error:', error);
     throw new Error('Invalid token');
   }
 };
@@ -99,6 +62,42 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ message: 'API is working!', timestamp: new Date().toISOString() });
     }
 
+    // Route: GET /api/auth/debug
+    if (pathname === '/api/auth/debug' && method === 'GET') {
+      const token = req.headers.authorization?.split(' ')[1];
+      
+      if (!token) {
+        return res.status(200).json({ 
+          message: 'No token provided',
+          hasToken: false,
+          headers: req.headers
+        });
+      }
+
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        
+        return res.status(200).json({ 
+          message: 'Token validation result',
+          hasToken: true,
+          tokenValid: !error && !!user,
+          user: user ? {
+            id: user.id,
+            email: user.email,
+            created_at: user.created_at
+          } : null,
+          error: error?.message
+        });
+      } catch (err) {
+        return res.status(200).json({ 
+          message: 'Token validation failed',
+          hasToken: true,
+          tokenValid: false,
+          error: err.message
+        });
+      }
+    }
+
     // Route: GET /api/auth/me
     if (pathname === '/api/auth/me' && method === 'GET') {
       const user = await verifyAuth(req);
@@ -107,44 +106,52 @@ module.exports = async function handler(req, res) {
 
     // Route: POST /api/auth/sync
     if (pathname === '/api/auth/sync' && method === 'POST') {
-      const user = await verifyAuth(req);
-      
-      // Sync user data with database
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (!existingUser) {
-        // Create new user
-        const { data: newUser } = await supabase
+      try {
+        const user = await verifyAuth(req);
+        
+        // Sync user data with database
+        const { data: existingUser } = await supabase
           .from('users')
-          .insert({
-            id: user.id,
-            email: user.email,
-            name: user.name || user.email.split('@')[0],
-            plan: 'free',
-            created_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        return res.status(200).json({ user: newUser });
-      } else {
-        // Update existing user
-        const { data: updatedUser } = await supabase
-          .from('users')
-          .update({
-            email: user.email,
-            name: user.name || user.email.split('@')[0],
-            updated_at: new Date().toISOString()
-          })
+          .select('*')
           .eq('id', user.id)
-          .select()
           .single();
 
-        return res.status(200).json({ user: updatedUser });
+        if (!existingUser) {
+          // Create new user
+          const { data: newUser } = await supabase
+            .from('users')
+            .insert({
+              id: user.id,
+              email: user.email,
+              name: user.name || user.email.split('@')[0],
+              plan: 'free',
+              created_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+          return res.status(200).json({ user: newUser });
+        } else {
+          // Update existing user
+          const { data: updatedUser } = await supabase
+            .from('users')
+            .update({
+              email: user.email,
+              name: user.name || user.email.split('@')[0],
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id)
+            .select()
+            .single();
+
+          return res.status(200).json({ user: updatedUser });
+        }
+      } catch (error) {
+        console.error('Auth sync error:', error);
+        return res.status(401).json({ 
+          error: 'Invalid token',
+          details: error.message 
+        });
       }
     }
 
