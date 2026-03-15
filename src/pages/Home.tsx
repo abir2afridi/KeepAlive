@@ -242,11 +242,18 @@ export default function Home() {
                     </div>
                  </div>
 
-                 <div className="flex-1 w-full aspect-square relative group">
+                  <div className="flex-1 w-full aspect-square relative group">
                     <div className="absolute inset-0 bg-[#5551FF]/5 rounded-full blur-[100px] group-hover:bg-[#5551FF]/10 transition-colors" />
                     <div className="relative h-full border border-white/5 bg-white/[0.02] backdrop-blur-3xl p-1 overflow-hidden">
+                       <div className="absolute inset-0 opacity-20 pointer-events-none">
+                          <DotLottieReact
+                            src="https://lottie.host/bc052365-b01f-4ab1-9044-bf03f6175d39/tbiDqt566u.lottie"
+                            loop
+                            autoplay
+                          />
+                       </div>
                        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:20px_20px]" />
-                       <div className="h-full flex flex-col justify-between p-8">
+                       <div className="h-full flex flex-col justify-between p-8 relative z-10">
                           {Array.from({length: 8}).map((_, i) => (
                              <div key={i} className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">

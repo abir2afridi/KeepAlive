@@ -56,6 +56,18 @@ export default function Monitors() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const navigate = useNavigate();
 
+  // Helper function to safely get numeric values
+  const getSafeValue = (value: any): number | null => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
     else setIsRefreshing(true);
@@ -253,22 +265,22 @@ export default function Monitors() {
                   <td className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center gap-2">
                        <div className="flex items-baseline gap-1.5">
-                         <span className={cn("text-lg font-bold italic tabular-nums", (monitor.uptime_percent || 0) < 99 ? "text-rose-500" : "text-emerald-500")}>
-                           {monitor.uptime_percent?.toFixed(2)}%
+                         <span className={cn("text-lg font-bold italic tabular-nums", (getSafeValue(monitor.uptime_percent) ?? 0) < 99 ? "text-rose-500" : "text-emerald-500")}>
+                           {getSafeValue(monitor.uptime_percent) !== null ? `${monitor.uptime_percent?.toFixed(2)}%` : '---'}
                          </span>
                          <span className="text-[9px] font-bold text-ink/40 uppercase italic">
                            ({monitor.recent_pings?.filter(p => p.is_up === 1).length || 0}/{monitor.recent_pings?.length || 0})
                          </span>
                        </div>
                         <div className="w-24 h-1 bg-line/10 rounded-full overflow-hidden">
-                          <div className={cn("h-full transition-all duration-1000", (monitor.uptime_percent || 0) < 99 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${monitor.uptime_percent}%` }} />
+                          <div className={cn("h-full transition-all duration-1000", (getSafeValue(monitor.uptime_percent) ?? 0) < 99 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${getSafeValue(monitor.uptime_percent) ?? 0}%` }} />
                         </div>
                     </div>
                   </td>
                   <td className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center gap-3">
                        <span className="text-lg font-bold text-ink italic tabular-nums">
-                         {monitor.last_response_time || '--'}<span className="text-[9px] ml-1 opacity-40 font-bold uppercase">ms</span>
+                         {getSafeValue(monitor.last_response_time) !== null ? monitor.last_response_time : '--'}<span className="text-[9px] ml-1 opacity-40 font-bold uppercase">ms</span>
                        </span>
                        <div className="w-24 h-5 opacity-40 group-hover:opacity-100 transition-opacity">
                           <Sparkline data={monitor.recent_pings?.slice(-15) || []} color={monitor.current_is_up === 1 ? "#10b981" : "#f43f5e"} />
@@ -336,8 +348,8 @@ export default function Monitors() {
               <div className="space-y-1">
                 <span className="text-[9px] font-bold text-ink/40 uppercase tracking-widest italic block">Uptime</span>
                 <div className="flex items-baseline gap-2">
-                  <span className={cn("text-lg font-bold italic", (monitor.uptime_percent || 0) < 99 ? "text-rose-500" : "text-emerald-500")}>
-                    {monitor.uptime_percent?.toFixed(1)}%
+                  <span className={cn("text-lg font-bold italic", (getSafeValue(monitor.uptime_percent) ?? 0) < 99 ? "text-rose-500" : "text-emerald-500")}>
+                    {getSafeValue(monitor.uptime_percent) !== null ? `${monitor.uptime_percent?.toFixed(1)}%` : '---'}
                   </span>
                   <span className="text-[8px] font-bold text-ink/30 italic">
                     ({monitor.recent_pings?.filter(p => p.is_up === 1).length || 0} UP)
@@ -347,7 +359,7 @@ export default function Monitors() {
               <div className="space-y-1">
                 <span className="text-[9px] font-bold text-ink/40 uppercase tracking-widest italic block">Latency</span>
                 <span className="text-lg font-bold text-ink italic">
-                  {monitor.last_response_time || '--'}<span className="text-[9px] ml-1 opacity-40">ms</span>
+                  {getSafeValue(monitor.last_response_time) !== null ? monitor.last_response_time : '--'}<span className="text-[9px] ml-1 opacity-40">ms</span>
                 </span>
               </div>
             </div>

@@ -18,14 +18,14 @@ export function SystemDistribution({ stats }: { stats: any }) {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
       
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Metrics Grid - Optimized for Sidebar Column */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {categories.map((cat, i) => (
-          <div key={i} className="bg-panel border border-line/40 rounded-3xl p-6 shadow-sm hover:translate-y-[-2px] hover:shadow-md transition-all group overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" />
-            <cat.icon className={cn("size-6 mb-4 group-hover:scale-110 transition-transform", cat.color)} />
-            <h4 className="text-[10px] font-black text-ink/60 uppercase tracking-widest italic mb-1">{cat.label}</h4>
-            <div className="text-2xl font-black italic text-ink">{cat.value}</div>
+          <div key={i} className="bg-panel border border-line/40 rounded-[24px] p-6 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all group overflow-hidden relative">
+            <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <cat.icon className={cn("size-5 mb-4 group-hover:scale-110 transition-transform", cat.color)} />
+            <h4 className="text-[10px] font-black text-ink/40 uppercase tracking-[0.2em] italic mb-1">{cat.label}</h4>
+            <div className="text-xl font-black italic text-ink">{cat.value}</div>
           </div>
         ))}
       </div>

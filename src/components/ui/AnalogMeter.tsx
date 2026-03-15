@@ -27,15 +27,17 @@ export function AnalogMeter({
     { limit: 100, color: '#ef4444' }   // Red 500
   ]
 }: AnalogMeterProps) {
+  const isDataMissing = value === undefined || value === null;
   const safeValue = typeof value === 'number' && Number.isFinite(value) ? value : min;
   const [animatedValue, setAnimatedValue] = useState(safeValue);
 
   useEffect(() => {
+    if (isDataMissing) return;
     const timeout = setTimeout(() => {
       setAnimatedValue(safeValue);
     }, 100);
     return () => clearTimeout(timeout);
-  }, [safeValue]);
+  }, [safeValue, isDataMissing]);
 
   // Constrain value between min and max
   const clampedValue = Math.max(min, Math.min(max, typeof animatedValue === 'number' && Number.isFinite(animatedValue) ? animatedValue : min));
@@ -45,7 +47,7 @@ export function AnalogMeter({
   const startAngle = -90;
   
   // Requirement 4 & 8: Convert the value to angle using formula
-  const rotation = ((clampedValue - min) / (max - min)) * sweep + startAngle;
+  const rotation = isDataMissing ? startAngle : ((clampedValue - min) / (max - min)) * sweep + startAngle;
   
   // Color mapping for colorClass
   const colorMap = {
@@ -58,6 +60,8 @@ export function AnalogMeter({
 
   // Determine current active color
   const currentColor = useMemo(() => {
+    if (isDataMissing) return '#94a3b8'; // Slate 400 for missing data
+
     if (colorClass && colorMap[colorClass]) {
       return colorMap[colorClass];
     }
@@ -70,7 +74,7 @@ export function AnalogMeter({
       }
     }
     return matchedColor;
-  }, [percentage, zones, colorClass]);
+  }, [percentage, zones, colorClass, isDataMissing]);
   
   const cx = 160;
   const cy = 160; 
@@ -193,17 +197,19 @@ export function AnalogMeter({
           />
 
           {/* Filled Active Arc (Glowing & Dynamic Color) */}
-          <motion.path
-            d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${endX} ${endY}`}
-            fill="none"
-            stroke={currentColor}
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            style={{ filter: 'url(#glow-meter)' }}
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ type: "spring", stiffness: 45, damping: 15 }}
-          />
+          {!isDataMissing && (
+            <motion.path
+              d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${endX} ${endY}`}
+              fill="none"
+              stroke={currentColor}
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+              style={{ filter: 'url(#glow-meter)' }}
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ type: "spring", stiffness: 45, damping: 15 }}
+            />
+          )}
 
           {/* Ticks and Clean Upright Labels */}
           {generateTicks()}
@@ -233,7 +239,7 @@ export function AnalogMeter({
                   style={{ 
                     height: '100%', 
                     background: `linear-gradient(to top, transparent, ${currentColor})`,
-                    boxShadow: `0 0 12px ${currentColor}80`
+                    boxShadow: isDataMissing ? 'none' : `0 0 12px ${currentColor}80`
                   }}
                 />
                 
@@ -264,15 +270,14 @@ export function AnalogMeter({
       <div className="relative mt-8 flex flex-col items-center">
           <div className="flex items-baseline gap-2">
               <span className="text-5xl font-black italic tracking-tighter tabular-nums drop-shadow-sm transition-colors duration-500" style={{ color: currentColor }}>
-                  {clampedValue.toFixed(0)}
+                  {isDataMissing ? '---' : clampedValue.toFixed(0)}
               </span>
-              <span className="text-xl font-bold text-ink/40">{unit}</span>
+              {!isDataMissing && <span className="text-xl font-bold text-ink/40">{unit}</span>}
           </div>
           <span className="text-[11px] tracking-[0.3em] font-bold text-ink/40 uppercase mt-1">
               {label}
           </span>
       </div>
-
     </div>
   );
 }

@@ -303,18 +303,18 @@ module.exports = async function handler(req, res) {
       // Calculate uptime percentage (pings.is_up is boolean)
       const totalPings = pings?.length || 0;
       const successfulPings = pings?.filter(p => p.is_up === true).length || 0;
-      const uptimePercent = totalPings > 0 ? (successfulPings / totalPings * 100) : 0;
+      const uptimePercent = totalPings > 0 ? (successfulPings / totalPings * 100) : null;
 
       // Calculate average response time
       const responseTimes = pings?.filter(p => p.is_up === true && p.response_time).map(p => p.response_time) || [];
       const avgResponseTime = responseTimes.length > 0
         ? (responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length)
-        : 0;
+        : null;
 
       // Get current status
       const currentPing = pings?.[0];
-      const currentIsUp = currentPing?.is_up === true ? 1 : 0;
-      const lastResponseTime = currentPing?.response_time || 0;
+      const currentIsUp = currentPing?.is_up === true ? 1 : (currentPing ? 0 : null);
+      const lastResponseTime = currentPing?.response_time || null;
       const lastErrorMessage = monitor.last_error_message;
 
       return res.status(200).json({
@@ -423,15 +423,15 @@ module.exports = async function handler(req, res) {
         allResponseTimes = pings?.filter(p => p.is_up === true && p.response_time).map(p => p.response_time) || [];
       }
 
-      const uptime = totalPings > 0 ? (successfulPings / totalPings * 100).toFixed(2) : 0;
+      const uptime = totalPings > 0 ? (successfulPings / totalPings * 100).toFixed(2) : null;
       const avgResponseTime = allResponseTimes.length > 0
         ? (allResponseTimes.reduce((sum, time) => sum + time, 0) / allResponseTimes.length).toFixed(2)
-        : 0;
+        : null;
 
       return res.status(200).json({
         total_monitors: totalMonitors,
-        overall_uptime: parseFloat(uptime),
-        avg_response_time: parseFloat(avgResponseTime),
+        overall_uptime: uptime !== null ? parseFloat(uptime) : null,
+        avg_response_time: avgResponseTime !== null ? parseFloat(avgResponseTime) : null,
         stats: {
           monitors: {
             total: totalMonitors,
