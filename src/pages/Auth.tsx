@@ -72,7 +72,7 @@ export default function Auth() {
 
       console.log('OAuth session set successfully');
 
-      // Store session data
+      // Store session data in localStorage for persistence
       localStorage.setItem('token', data.session.access_token);
       
       const user = data.session.user;
@@ -83,7 +83,7 @@ export default function Auth() {
         plan: 'free'
       }));
 
-      // Clean URL hash and redirect to dashboard
+      // Clean up the URL hash and redirect to dashboard
       window.history.replaceState({}, document.title, window.location.pathname);
       
       setTimeout(() => {
@@ -104,10 +104,14 @@ export default function Auth() {
     let cancelled = false;
 
     (async () => {
-      // First check for OAuth callback
-      const isOAuthCallback = await handleOAuthCallback();
-      if (isOAuthCallback) {
-        return; // OAuth callback handled, exit early
+      // First check for OAuth callback hash
+      const hash = window.location.hash;
+      if (hash && hash.includes('access_token')) {
+        console.log('OAuth callback detected, processing...');
+        const isOAuthCallback = await handleOAuthCallback();
+        if (isOAuthCallback) {
+          return; // OAuth callback handled, exit early
+        }
       }
 
       // Then check for existing session
