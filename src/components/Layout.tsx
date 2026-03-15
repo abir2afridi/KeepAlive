@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { 
   Zap, 
@@ -57,6 +57,31 @@ export default function Layout() {
       navigate('/auth');
     }
   };
+
+  // Sync user data context
+  useEffect(() => {
+    const syncUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (dbUser) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        localStorage.setItem('user', JSON.stringify({
+          ...currentUser,
+          ...dbUser,
+          id: session.user.id,
+          email: session.user.email
+        }));
+      }
+    };
+    syncUser();
+  }, []);
 
   const navItems = [
     { icon: LayoutGrid, label: 'DASHBOARD', path: '/app/dashboard' },

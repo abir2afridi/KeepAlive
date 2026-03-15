@@ -118,7 +118,7 @@ router.get('/public-status/:slug', asyncHandler(async (req, res) => {
     let pingRows: any[] = [];
     if (monitorIds.length > 0) {
       const { data: pingsData, error: pErr } = await supabaseAdmin
-        .from('ping_logs')
+        .from('pings')
         .select('monitor_id, response_time, is_up, created_at')
         .in('monitor_id', monitorIds)
         .order('created_at', { ascending: false })
@@ -454,7 +454,7 @@ router.get('/monitors', asyncHandler(async (req: AuthRequest, res) => {
 
       if (ids.length > 0) {
         const { data: pingsData, error: pErr } = await supabaseAdmin
-          .from('ping_logs')
+          .from('pings')
           .select('*')
           .in('monitor_id', ids)
           .order('created_at', { ascending: false })

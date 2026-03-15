@@ -98,9 +98,18 @@ export default function StatusPage() {
       }
       
       setMonitors(data.monitors || []);
-      if (data.user?.email) {
-        setStatusName(`${data.user.email.split('@')[0].toUpperCase()}`);
+      
+      // Resolve status name from user profile or status page settings
+      if (data.user?.name) {
+        setStatusName(data.user.name.toUpperCase());
+      } else if (data.status_page?.name) {
+        setStatusName(data.status_page.name.toUpperCase());
+      } else if (data.user?.email) {
+        setStatusName(data.user.email.split('@')[0].toUpperCase());
+      } else {
+        setStatusName(slug?.toUpperCase() || 'STATUS PAGE');
       }
+
       setError('');
     } catch (err: any) {
       console.error('Status fetch error:', err);

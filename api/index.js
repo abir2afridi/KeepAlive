@@ -1,14 +1,26 @@
 const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = process.env.SUPABASE_URL;
+// Environment variables check
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('CRITICAL: Supabase environment variables are missing!');
+}
+
+const supabase = createClient(supabaseUrl || '', supabaseServiceKey || '');
+const supabaseAdmin = supabase;
+
+console.log('Supabase initialized:', {
+  hasUrl: !!supabaseUrl,
+  hasServiceKey: !!supabaseServiceKey,
+  urlStart: supabaseUrl ? supabaseUrl.substring(0, 10) : 'none'
+});
 
 // Authentication middleware
 const verifyAuth = async (req) => {
   const token = req.headers.authorization?.split(' ')[1];
-  
+
   if (!token) {
     throw new Error('Unauthorized - No token');
   }
@@ -16,7 +28,7 @@ const verifyAuth = async (req) => {
   try {
     // Use Supabase auth.getUser() to validate the token
     const { data: { user }, error } = await supabase.auth.getUser(token);
-    
+
     if (error || !user) {
       throw new Error('Invalid token');
     }
@@ -28,9 +40,9 @@ const verifyAuth = async (req) => {
       .eq('id', user.id)
       .single();
 
-    return dbUser || { 
-      id: user.id, 
-      email: user.email || '', 
+    return dbUser || {
+      id: user.id,
+      email: user.email || '',
       plan: 'free',
       name: user.user_metadata?.full_name || user.email?.split('@')[0] || '',
       status_slug: null
@@ -65,9 +77,9 @@ module.exports = async function handler(req, res) {
     // Route: GET /api/auth/debug
     if (pathname === '/api/auth/debug' && method === 'GET') {
       const token = req.headers.authorization?.split(' ')[1];
-      
+
       if (!token) {
-        return res.status(200).json({ 
+        return res.status(200).json({
           message: 'No token provided',
           hasToken: false,
           headers: req.headers
@@ -76,8 +88,8 @@ module.exports = async function handler(req, res) {
 
       try {
         const { data: { user }, error } = await supabase.auth.getUser(token);
-        
-        return res.status(200).json({ 
+
+        return res.status(200).json({
           message: 'Token validation result',
           hasToken: true,
           tokenValid: !error && !!user,
@@ -89,7 +101,7 @@ module.exports = async function handler(req, res) {
           error: error?.message
         });
       } catch (err) {
-        return res.status(200).json({ 
+        return res.status(200).json({
           message: 'Token validation failed',
           hasToken: true,
           tokenValid: false,
@@ -108,7 +120,7 @@ module.exports = async function handler(req, res) {
     if (pathname === '/api/auth/sync' && method === 'POST') {
       try {
         const user = await verifyAuth(req);
-        
+
         // Sync user data with database
         const { data: existingUser } = await supabase
           .from('users')
@@ -124,6 +136,7 @@ module.exports = async function handler(req, res) {
               id: user.id,
               email: user.email,
               name: user.name || user.email.split('@')[0],
+              status_slug: user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-'),
               plan: 'free',
               created_at: new Date().toISOString()
             })
@@ -148,9 +161,9 @@ module.exports = async function handler(req, res) {
         }
       } catch (error) {
         console.error('Auth sync error:', error);
-        return res.status(401).json({ 
+        return res.status(401).json({
           error: 'Invalid token',
-          details: error.message 
+          details: error.message
         });
       }
     }
@@ -207,11 +220,11 @@ module.exports = async function handler(req, res) {
     // Route: POST /api/monitors
     if (pathname === '/api/monitors' && method === 'POST') {
       const user = await verifyAuth(req);
-      const { 
-        name, 
-        url: monitorUrl, 
-        type, 
-        interval, 
+      const {
+        name,
+        url: monitorUrl,
+        type,
+        interval,
         timeout,
         method: reqMethod,
         body,
@@ -280,7 +293,7 @@ module.exports = async function handler(req, res) {
 
       // Calculate average response time
       const responseTimes = pings?.filter(p => p.is_up === true && p.response_time).map(p => p.response_time) || [];
-      const avgResponseTime = responseTimes.length > 0 
+      const avgResponseTime = responseTimes.length > 0
         ? (responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length)
         : 0;
 
@@ -311,11 +324,11 @@ module.exports = async function handler(req, res) {
     if (pathname.startsWith('/api/monitors/') && method === 'PUT') {
       const user = await verifyAuth(req);
       const monitorId = pathname.split('/').pop();
-      const { 
-        name, 
-        url: monitorUrl, 
-        type, 
-        interval, 
+      const {
+        name,
+        url: monitorUrl,
+        type,
+        interval,
         timeout,
         method: reqMethod,
         body,
@@ -368,12 +381,11 @@ module.exports = async function handler(req, res) {
     if (pathname === '/api/stats' && method === 'GET') {
       const user = await verifyAuth(req);
 
-      // Get monitor stats - only active monitors
+      // Get monitor stats - all monitors for user
       const { data: monitors } = await supabase
         .from('monitors')
         .select('id, status')
-        .eq('user_id', user.id)
-        .eq('status', 'active');
+        .eq('user_id', user.id);
 
       const totalMonitors = monitors?.length || 0;
       const activeMonitors = totalMonitors;
@@ -398,7 +410,7 @@ module.exports = async function handler(req, res) {
       }
 
       const uptime = totalPings > 0 ? (successfulPings / totalPings * 100).toFixed(2) : 0;
-      const avgResponseTime = allResponseTimes.length > 0 
+      const avgResponseTime = allResponseTimes.length > 0
         ? (allResponseTimes.reduce((sum, time) => sum + time, 0) / allResponseTimes.length).toFixed(2)
         : 0;
 
@@ -486,100 +498,137 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
-    // Route: GET /api/public-status/{slug}
+    // Route: GET /api/public-status/{slug} or /api/public-status/{slug}/monitors/{id}
     if (pathname.startsWith('/api/public-status/') && method === 'GET') {
-      const slug = pathname.split('/').pop();
+      const parts = pathname.split('/').filter(Boolean);
+      // Expected parts: ['api', 'public-status', slug] (length 3)
+      // Or: ['api', 'public-status', slug, 'monitors', monitorId] (length 5)
+
+      const slug = parts[2];
+      const isMonitorDetail = parts.length === 5 && parts[3] === 'monitors';
+      const monitorId = isMonitorDetail ? parts[4] : null;
 
       if (!slug) {
         return res.status(400).json({ error: 'Missing slug parameter' });
       }
 
-      // Get public status page by slug (table is `status_pages`, not `public_status_pages`)
-      const { data: statusPage } = await supabase
+      console.log(`Fetching public status for slug: ${slug}, monitorId: ${monitorId || 'none'}`);
+
+      // 1. Try finding by status_pages table
+      let { data: statusPage } = await supabaseAdmin
         .from('status_pages')
         .select('*')
         .eq('slug', slug)
-        .eq('public', true)
-        .single();
+        .maybeSingle();
 
-      if (!statusPage) {
-        // Fallback: try finding a user with this status_slug and return their monitors
-        const { data: slugUser } = await supabase
+      let monitorQuery;
+      let userData = null;
+      let ownerId = null;
+
+      if (statusPage) {
+        ownerId = statusPage.user_id;
+        const { data: pageUser } = await supabaseAdmin
           .from('users')
-          .select('id')
+          .select('id, email, name, status_slug')
+          .eq('id', ownerId)
+          .maybeSingle();
+        userData = pageUser;
+      } else {
+        // 2. Fallback: try finding a user with this status_slug
+        const { data: slugUser } = await supabaseAdmin
+          .from('users')
+          .select('id, email, name, status_slug')
           .eq('status_slug', slug)
-          .single();
+          .maybeSingle();
 
         if (!slugUser) {
+          console.error(`Public status resolve failed for slug: ${slug}`);
           return res.status(404).json({ error: 'Status page not found' });
         }
 
-        // Get all active monitors for this user
-        const { data: monitors } = await supabase
+        userData = slugUser;
+        ownerId = slugUser.id;
+        statusPage = {
+          slug,
+          name: slugUser.name || slugUser.email?.split('@')[0].toUpperCase(),
+          public: true
+        };
+      }
+
+      // Handle Monitor Detail View
+      if (isMonitorDetail && monitorId) {
+        const { data: monitor } = await supabaseAdmin
           .from('monitors')
           .select('*')
-          .eq('user_id', slugUser.id)
-          .eq('status', 'active')
-          .order('name');
+          .eq('id', monitorId)
+          .maybeSingle();
 
-        const monitorsWithPings = await Promise.all(
-          (monitors || []).map(async (monitor) => {
-            const { data: pings } = await supabase
-              .from('pings')
-              .select('is_up, created_at, response_time')
-              .eq('monitor_id', monitor.id)
-              .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-              .order('created_at', { ascending: false })
-              .limit(100);
+        if (!monitor) {
+          return res.status(404).json({ error: 'Monitor not found' });
+        }
 
-            const totalPings = pings?.length || 0;
-            const successfulPings = pings?.filter(p => p.is_up === true).length || 0;
-            const uptime = totalPings > 0 ? (successfulPings / totalPings * 100).toFixed(2) : 0;
+        // Verify monitor belongs to the owner
+        if (monitor.user_id !== ownerId) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
 
-            const responseTimes = pings?.filter(p => p.is_up === true && p.response_time).map(p => p.response_time) || [];
-            const avgResponseTime = responseTimes.length > 0 
-              ? (responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length).toFixed(2)
-              : 0;
+        const { data: pings } = await supabaseAdmin
+          .from('pings')
+          .select('is_up, created_at, response_time, error_message')
+          .eq('monitor_id', monitor.id)
+          .order('created_at', { ascending: false })
+          .limit(100);
 
-            const currentPing = pings?.[0];
-            const currentIsUp = currentPing?.is_up === true ? 1 : 0;
+        const totalPings = pings?.length || 0;
+        const successfulPings = pings?.filter(p => p.is_up === true).length || 0;
+        const uptime = totalPings > 0 ? (successfulPings / totalPings * 100).toFixed(2) : 0;
 
-            return {
-              ...monitor,
-              uptime_percent: parseFloat(uptime),
-              avg_response_time: parseFloat(avgResponseTime),
-              current_is_up: currentIsUp,
-              last_checked: currentPing?.created_at || null,
-              recent_pings: pings?.map(ping => ({
-                response_time: ping.response_time || 0,
-                is_up: ping.is_up === true ? 1 : 0,
-                created_at: ping.created_at
-              })) || []
-            };
-          })
-        );
+        const responseTimes = pings?.filter(p => p.is_up === true && p.response_time).map(p => p.response_time) || [];
+        const avgResponseTime = responseTimes.length > 0
+          ? (responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length).toFixed(2)
+          : 0;
+
+        const currentPing = pings?.[0];
 
         return res.status(200).json({
-          status_page: { slug, name: slug, public: true },
-          monitors: monitorsWithPings
+          ...monitor,
+          uptime_percent: parseFloat(uptime),
+          last_response_time: monitor.last_response_time || (currentPing?.response_time || 0),
+          current_is_up: currentPing?.is_up === true ? 1 : 0,
+          recent_pings: pings?.map(ping => ({
+            response_time: ping.response_time || 0,
+            is_up: ping.is_up === true ? 1 : 0,
+            created_at: ping.created_at,
+            error_message: ping.error_message
+          })) || [],
+          last_error_message: currentPing?.is_up === false ? currentPing.error_message : null
         });
       }
 
-      // Get monitors for this status page
-      const { data: monitors } = await supabase
-        .from('monitors')
-        .select('*')
-        .eq('status_page_id', statusPage.id)
-        .order('name');
+      // Handle Full Status Page View
+      if (ownerId && !monitorQuery) {
+        if (statusPage.id) {
+          monitorQuery = supabaseAdmin
+            .from('monitors')
+            .select('*')
+            .eq('status_page_id', statusPage.id);
+        } else {
+          monitorQuery = supabaseAdmin
+            .from('monitors')
+            .select('*')
+            .eq('user_id', ownerId);
+        }
+      }
 
-      // Get recent pings for each monitor
+      const { data: monitors } = await monitorQuery.order('name');
+
+      // 3. Enrich monitors with ping data
       const monitorsWithPings = await Promise.all(
         (monitors || []).map(async (monitor) => {
-          const { data: pings } = await supabase
+          const { data: pings } = await supabaseAdmin
             .from('pings')
             .select('is_up, created_at, response_time')
             .eq('monitor_id', monitor.id)
-            .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
             .order('created_at', { ascending: false })
             .limit(100);
 
@@ -588,7 +637,7 @@ module.exports = async function handler(req, res) {
           const uptime = totalPings > 0 ? (successfulPings / totalPings * 100).toFixed(2) : 0;
 
           const responseTimes = pings?.filter(p => p.is_up === true && p.response_time).map(p => p.response_time) || [];
-          const avgResponseTime = responseTimes.length > 0 
+          const avgResponseTime = responseTimes.length > 0
             ? (responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length).toFixed(2)
             : 0;
 
@@ -610,8 +659,13 @@ module.exports = async function handler(req, res) {
         })
       );
 
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
       return res.status(200).json({
         status_page: statusPage,
+        user: userData ? {
+          email: userData.email,
+          name: userData.name
+        } : null,
         monitors: monitorsWithPings
       });
     }
@@ -621,14 +675,14 @@ module.exports = async function handler(req, res) {
   } catch (error) {
     console.error('API Error:', error);
     if (error.message.includes('Unauthorized') || error.message.includes('Invalid token')) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Invalid token',
-        details: error.message 
+        details: error.message
       });
     }
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Internal server error',
-      details: error.message 
+      details: error.message
     });
   }
 };
