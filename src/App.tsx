@@ -39,20 +39,40 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     const checkAuth = async () => {
       try {
-        // First check if we have a token in localStorage
-        const localToken = localStorage.getItem('token');
-        if (localToken) {
+        // First check Supabase session (most reliable)
+        const { data: sessionData } = await supabase.auth.getSession();
+        const session = sessionData.session;
+        
+        if (session?.access_token) {
+          // Valid Supabase session exists
           if (mounted) setAuthState('authenticated');
           return;
         }
 
-        // Then check Supabase session
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
+        // Fallback: Check localStorage for token
+        const localToken = localStorage.getItem('token');
+        const localUser = localStorage.getItem('user');
         
-        if (mounted) {
-          setAuthState(token ? 'authenticated' : 'unauthenticated');
+        if (localToken) {
+          // Try to restore session with stored token
+          try {
+            const { data: restoredSession, error: restoreError } = await supabase.auth.setSession({
+              access_token: localToken,
+              refresh_token: '' // We don't store refresh token in localStorage for security
+            });
+
+            if (!restoreError && restoredSession.session) {
+              console.log('Session restored from localStorage');
+              if (mounted) setAuthState('authenticated');
+              return;
+            }
+          } catch (restoreErr) {
+            console.warn('Failed to restore session from localStorage:', restoreErr);
+          }
         }
+
+        // No valid session found
+        if (mounted) setAuthState('unauthenticated');
       } catch (error) {
         console.error('Auth check error:', error);
         if (mounted) setAuthState('unauthenticated');
@@ -61,16 +81,31 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     checkAuth();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      const token = session?.access_token;
-      if (token) {
-        localStorage.setItem('token', token);
-      } else {
-        localStorage.removeItem('token');
-      }
+    // Listen for auth state changes
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', { event, hasSession: !!session });
       
-      if (mounted) {
-        setAuthState(token ? 'authenticated' : 'unauthenticated');
+      if (session?.access_token) {
+        // Session exists - store minimal info
+        localStorage.setItem('token', session.access_token);
+        
+        // Store user data
+        const user = session.user;
+        if (user) {
+          localStorage.setItem('user', JSON.stringify({
+            id: user.id,
+            email: user.email,
+            name: user.user_metadata?.full_name || user.email?.split('@')[0],
+            plan: 'free'
+          }));
+        }
+        
+        if (mounted) setAuthState('authenticated');
+      } else {
+        // No session - clear stored data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        if (mounted) setAuthState('unauthenticated');
       }
     });
 

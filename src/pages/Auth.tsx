@@ -16,12 +16,101 @@ export default function Auth() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Parse URL hash fragment for OAuth callback
+  const parseOAuthHash = (hash: string) => {
+    const params = new URLSearchParams(hash.substring(1)); // Remove # and parse
+    return {
+      access_token: params.get('access_token'),
+      refresh_token: params.get('refresh_token'),
+      expires_in: params.get('expires_in'),
+      provider_token: params.get('provider_token'),
+      error: params.get('error'),
+      error_description: params.get('error_description')
+    };
+  };
+
+  // Handle OAuth callback
+  const handleOAuthCallback = async () => {
+    const hash = window.location.hash;
+    if (!hash || !hash.includes('access_token')) {
+      return false; // No OAuth callback
+    }
+
+    setOauthLoading(true);
+    setError('');
+
+    try {
+      const oauthData = parseOAuthHash(hash);
+      
+      // Check for OAuth errors
+      if (oauthData.error) {
+        throw new Error(oauthData.error_description || oauthData.error);
+      }
+
+      if (!oauthData.access_token) {
+        throw new Error('No access token received from OAuth');
+      }
+
+      console.log('OAuth callback detected, setting session...');
+
+      // Set the session using Supabase
+      const { data, error } = await supabase.auth.setSession({
+        access_token: oauthData.access_token,
+        refresh_token: oauthData.refresh_token || ''
+      });
+
+      if (error) {
+        throw new Error(`Failed to set session: ${error.message}`);
+      }
+
+      if (!data.session) {
+        throw new Error('No session created after OAuth callback');
+      }
+
+      console.log('OAuth session set successfully');
+
+      // Store session data
+      localStorage.setItem('token', data.session.access_token);
+      
+      const user = data.session.user;
+      localStorage.setItem('user', JSON.stringify({
+        id: user.id,
+        email: user.email,
+        name: user.user_metadata?.full_name || user.email?.split('@')[0],
+        plan: 'free'
+      }));
+
+      // Clean URL hash and redirect to dashboard
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      setTimeout(() => {
+        navigate('/app/dashboard', { replace: true });
+      }, 100);
+
+      return true;
+    } catch (err: any) {
+      console.error('OAuth callback error:', err);
+      setError(err.message || 'OAuth authentication failed');
+      return false;
+    } finally {
+      setOauthLoading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
+      // First check for OAuth callback
+      const isOAuthCallback = await handleOAuthCallback();
+      if (isOAuthCallback) {
+        return; // OAuth callback handled, exit early
+      }
+
+      // Then check for existing session
       try {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
@@ -30,26 +119,25 @@ export default function Auth() {
 
         localStorage.setItem('token', token);
 
-        try {
-          const res = await fetch('/api/auth/sync', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-          });
+        // Use Supabase data directly
+        const user = data.session.user;
+        localStorage.setItem('user', JSON.stringify({
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.full_name || user.email?.split('@')[0],
+          plan: 'free'
+        }));
 
-          if (res.ok) {
-            const payload = await res.json();
-            localStorage.setItem('user', JSON.stringify(payload.user));
+        console.log('Existing session found, navigating to dashboard...');
+        
+        // Add small delay to ensure token is stored before navigation
+        setTimeout(() => {
+          if (!cancelled) {
+            navigate('/app/dashboard');
           }
-        } catch {
-          // ignore; token is still valid for API calls
-        }
-
-        navigate('/app/dashboard');
+        }, 100);
       } catch (e) {
-        // ignore
+        console.error('Session check error:', e);
       }
     })();
 
@@ -73,41 +161,23 @@ export default function Auth() {
       const token = data.session?.access_token;
       if (!token) throw new Error('Missing session token');
       
-      // Try to sync with backend
-      let syncSucceeded = false;
-      try {
-        const res = await fetch('/api/auth/sync', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          localStorage.setItem('user', JSON.stringify(data.user));
-          syncSucceeded = true;
-        } else {
-          const data = await res.json().catch(() => ({}));
-          console.warn('Backend sync failed:', res.status, data);
-        }
-      } catch (syncErr) {
-        console.warn('Backend sync request failed:', syncErr);
-      }
-
       localStorage.setItem('token', token);
-      if (!syncSucceeded) {
-        const supaUser = data.user;
-        localStorage.setItem('user', JSON.stringify({
-          email: supaUser?.email,
-          name: supaUser?.email?.split('@')[0],
-          uid: supaUser?.id,
-          plan: 'free',
-        }));
-      }
+      
+      // Use Supabase user data directly - no API sync
+      const supaUser = data.user;
+      localStorage.setItem('user', JSON.stringify({
+        id: supaUser?.id,
+        email: supaUser?.email,
+        name: supaUser?.user_metadata?.full_name || supaUser?.email?.split('@')[0],
+        plan: 'free',
+      }));
 
-      navigate('/app/dashboard');
+      console.log('Login successful, navigating to dashboard...');
+
+      // Add small delay to ensure token is stored before navigation
+      setTimeout(() => {
+        navigate('/app/dashboard');
+      }, 100);
     } catch (err: any) {
       console.error('Auth sequence error:', err);
       let msg = err.message || 'Authentication failed';
@@ -238,6 +308,14 @@ export default function Auth() {
               </div>
             )}
 
+            {/* OAuth Loading State */}
+            {oauthLoading && (
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 text-primary text-[10px] font-black uppercase tracking-widest flex items-center gap-3 italic">
+                <RefreshCw className="size-4 animate-spin" />
+                Completing authentication...
+              </div>
+            )}
+
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-ink/50 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
@@ -249,7 +327,8 @@ export default function Auth() {
                   autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-xl bg-panel/50 dark:bg-panel/[0.02] border border-line dark:border-white/5 text-ink text-sm font-black italic px-5 py-2.5 focus:ring-4 focus:ring-primary/10 focus:border-primary/50 outline-none transition-all placeholder:text-ink/30"
+                  disabled={oauthLoading}
+                  className="w-full rounded-xl bg-panel/50 dark:bg-panel/[0.02] border border-line dark:border-white/5 text-ink text-sm font-black italic px-5 py-2.5 focus:ring-4 focus:ring-primary/10 focus:border-primary/50 outline-none transition-all placeholder:text-ink/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="ADMIN@DOMAIN.CORE"
                 />
               </div>
@@ -270,7 +349,8 @@ export default function Auth() {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-xl bg-panel/50 dark:bg-panel/[0.02] border border-line dark:border-white/5 text-ink text-sm font-black italic px-5 py-2.5 focus:ring-4 focus:ring-primary/10 focus:border-primary/50 outline-none transition-all placeholder:text-ink/30"
+                  disabled={oauthLoading}
+                  className="w-full rounded-xl bg-panel/50 dark:bg-panel/[0.02] border border-line dark:border-white/5 text-ink text-sm font-black italic px-5 py-2.5 focus:ring-4 focus:ring-primary/10 focus:border-primary/50 outline-none transition-all placeholder:text-ink/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="••••••••"
                 />
               </div>
@@ -279,7 +359,7 @@ export default function Auth() {
             <div className="space-y-3 pt-1">
               <button
                 type="submit"
-                disabled={loading || googleLoading}
+                disabled={loading || googleLoading || oauthLoading}
                 className="w-full py-3 bg-primary text-white rounded-xl font-black text-[11px] uppercase tracking-[0.2em] hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40 transition-all active:scale-[0.98] flex items-center justify-center gap-3 group disabled:opacity-50">
                 {loading ? <RefreshCw className="size-4 animate-spin" /> : (isLogin ? <Fingerprint className="size-4" /> : <UserPlus className="size-4" />)}
                 {loading ? 'AUTHENTICATING...' : (isLogin ? 'VERIFY ACCESS' : 'AUTHORIZE NODE')}
@@ -295,10 +375,10 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                disabled={loading || googleLoading}
-                className="w-full py-3 bg-panel/50 dark:bg-panel/[0.04] border border-line dark:border-white/10 text-ink rounded-xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white dark:hover:bg-white/5 hover:shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-50 border-dashed"
+                disabled={loading || googleLoading || oauthLoading}
+                className="w-full py-3 bg-panel/50 dark:bg-panel/[0.04] border border-line dark:border-white/10 text-ink rounded-xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white dark:hover:bg-white/5 hover:shadow-lg transition-all flex items-center justify-center disabled:opacity-50 border-dashed"
               >
-                {googleLoading ? (
+                {googleLoading || oauthLoading ? (
                   <RefreshCw className="size-4 animate-spin" />
                 ) : (
                   <svg className="size-5" viewBox="0 0 48 48">
@@ -308,7 +388,7 @@ export default function Auth() {
                     <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
                   </svg>
                 )}
-                {googleLoading ? 'BRIDGING NODE...' : 'AUTHORIZE VIA GOOGLE'}
+                {googleLoading || oauthLoading ? 'BRIDGING NODE...' : 'AUTHORIZE VIA GOOGLE'}
               </button>
             </div>
           </form>
