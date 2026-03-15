@@ -104,6 +104,48 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ user });
     }
 
+    // Route: GET /api/auth/debug
+    if (pathname === '/api/auth/debug' && method === 'GET') {
+      try {
+        const token = req.headers.authorization?.split(' ')[1];
+        console.log('Debug - Token exists:', !!token);
+        console.log('Debug - Token length:', token?.length || 0);
+        
+        if (!token) {
+          return res.status(200).json({ 
+            debug: 'No token found in Authorization header',
+            headers: Object.keys(req.headers)
+          });
+        }
+
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        console.log('Debug - Supabase user:', user);
+        console.log('Debug - Supabase error:', error);
+
+        if (error || !user) {
+          return res.status(200).json({ 
+            debug: 'Invalid token',
+            error: error?.message,
+            user: null
+          });
+        }
+
+        return res.status(200).json({ 
+          debug: 'Valid token',
+          user: {
+            id: user.id,
+            email: user.email,
+            created_at: user.created_at
+          }
+        });
+      } catch (err) {
+        return res.status(500).json({ 
+          debug: 'Error in debug endpoint',
+          error: err.message 
+        });
+      }
+    }
+
     // Route: POST /api/auth/sync
     if (pathname === '/api/auth/sync' && method === 'POST') {
       try {
