@@ -82,58 +82,90 @@ const LatencyChart = ({ data, isUp = true }: { data: Ping[], isUp?: boolean }) =
   }
 
   const chartData = data.map(p => ({
-    time: new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    time: new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     latency: p.response_time,
-    status: p.is_up === 1 ? 'Up' : 'Down'
+    status: p.is_up === 1 ? 'Operational' : 'Critical Fault',
+    color: p.is_up === 0 ? '#f43f5e' : (p.response_time > 500 ? '#f59e0b' : '#10b981')
   }));
+
+  const avgLatency = data.length > 0 ? data.reduce((acc, p) => acc + p.response_time, 0) / data.length : 0;
 
   const chartConfig = {
     latency: {
-      label: "Latency",
-      color: isUp ? "hsl(var(--primary))" : "hsl(var(--destructive))",
+      label: "Latency (ms)",
+      color: "var(--primary)",
     },
   };
 
-  const strokeColor = isUp ? "var(--primary)" : "#f43f5e";
-  const fillColor = isUp ? "var(--primary)" : "#f43f5e";
-
   return (
-    <ChartContainer config={chartConfig} className="h-full w-full min-h-[200px] aspect-auto">
-      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+    <ChartContainer config={chartConfig} className="h-full w-full min-h-[250px] aspect-auto">
+      <AreaChart data={chartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
         <defs>
           <linearGradient id="latencyGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={fillColor} stopOpacity={0.3} />
-            <stop offset="95%" stopColor={fillColor} stopOpacity={0} />
+            <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.4} />
+            <stop offset="30%" stopColor="#f59e0b" stopOpacity={0.2} />
+            <stop offset="60%" stopColor="#10b981" stopOpacity={0.1} />
+            <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid 
           vertical={false} 
-          strokeDasharray="3 3" 
+          strokeDasharray="4 4" 
           stroke="currentColor" 
-          className="opacity-[0.03] dark:opacity-[0.05]" 
+          className="opacity-[0.05] dark:opacity-[0.1]" 
         />
         <XAxis 
           dataKey="time" 
-          hide 
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 9, fill: 'currentColor', opacity: 0.4, fontWeight: 700 }}
+          minTickGap={30}
         />
         <YAxis 
           tickLine={false} 
           axisLine={false} 
-          tick={false}
-          domain={['auto', 'auto']}
+          tick={{ fontSize: 9, fill: 'currentColor', opacity: 0.4, fontWeight: 700 }}
+          unit="ms"
+          domain={[0, 'auto']}
         />
         <ChartTooltip
-          cursor={{ stroke: strokeColor, strokeWidth: 1, strokeDasharray: '4 4' }}
-          content={<ChartTooltipContent hideLabel indicator="dot" />}
+          cursor={{ stroke: 'var(--primary)', strokeWidth: 1, strokeDasharray: '4 4' }}
+          content={({ active, payload }) => {
+            if (active && payload && payload.length) {
+              const data = payload[0].payload;
+              return (
+                <div className="bg-slate-900 border border-white/10 p-3 rounded-xl shadow-2xl backdrop-blur-xl">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="size-2 rounded-full" style={{ backgroundColor: data.color }} />
+                    <span className="text-[10px] font-black uppercase text-white tracking-widest">{data.status}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[14px] font-bold text-primary italic">{data.latency}<span className="text-[10px] ml-1 opacity-50">ms</span></p>
+                    <p className="text-[8px] font-bold text-white/40 uppercase">{data.time}</p>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          }}
         />
         <Area
           type="monotone"
           dataKey="latency"
-          stroke={strokeColor}
-          strokeWidth={2}
+          stroke="url(#latencyGradient)"
+          strokeWidth={3}
           fillOpacity={1}
           fill="url(#latencyGradient)"
-          animationDuration={1500}
+          animationDuration={2000}
+          isAnimationActive={true}
+        />
+        {/* Reference Line for Average */}
+        <line 
+          x1="0" y1={avgLatency} x2="100%" y2={avgLatency} 
+          stroke="var(--primary)" 
+          strokeDasharray="5 5" 
+          strokeOpacity={0.2}
+          strokeWidth={1}
         />
       </AreaChart>
     </ChartContainer>
@@ -301,7 +333,7 @@ export default function MonitorDetails() {
   const recentPings = monitor?.recent_pings || [];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 sm:space-y-12 animate-in fade-in duration-700">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-12 animate-in fade-in duration-700">
       
       {/* Refined Header */}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 pb-8 sm:pb-10 border-b border-line dark:border-white/5">
@@ -372,7 +404,7 @@ export default function MonitorDetails() {
                     <span className="text-[6px] font-bold text-emerald-500 uppercase italic">Reliability OK</span>
                  </div>
                  <AnalogMeter 
-                   value={monitor.uptime_percent} 
+                   value={getSafeValue(monitor.uptime_percent)} 
                    max={100} 
                    unit="%" 
                    label="Uptime SLA" 
@@ -388,7 +420,7 @@ export default function MonitorDetails() {
                     <span className="text-[6px] font-bold text-primary uppercase italic">Pulse Nominal</span>
                  </div>
                  <AnalogMeter 
-                   value={monitor.last_response_time} 
+                   value={getSafeValue(monitor.last_response_time)} 
                    max={1000} 
                    unit="ms" 
                    label="Latency" 

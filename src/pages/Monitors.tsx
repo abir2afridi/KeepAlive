@@ -252,11 +252,16 @@ export default function Monitors() {
                   </td>
                   <td className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center gap-2">
-                       <span className={cn("text-lg font-bold italic tabular-nums", (monitor.uptime_percent || 0) < 99 ? "text-rose-500" : "text-emerald-500")}>
-                         {monitor.uptime_percent?.toFixed(2)}%
-                       </span>
-                        <div className="w-20 h-1 bg-line/10 rounded-full overflow-hidden">
-                          <div className={cn("h-full", (monitor.uptime_percent || 0) < 99 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${monitor.uptime_percent}%` }} />
+                       <div className="flex items-baseline gap-1.5">
+                         <span className={cn("text-lg font-bold italic tabular-nums", (monitor.uptime_percent || 0) < 99 ? "text-rose-500" : "text-emerald-500")}>
+                           {monitor.uptime_percent?.toFixed(2)}%
+                         </span>
+                         <span className="text-[9px] font-bold text-ink/40 uppercase italic">
+                           ({monitor.recent_pings?.filter(p => p.is_up === 1).length || 0}/{monitor.recent_pings?.length || 0})
+                         </span>
+                       </div>
+                        <div className="w-24 h-1 bg-line/10 rounded-full overflow-hidden">
+                          <div className={cn("h-full transition-all duration-1000", (monitor.uptime_percent || 0) < 99 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${monitor.uptime_percent}%` }} />
                         </div>
                     </div>
                   </td>
@@ -330,9 +335,14 @@ export default function Monitors() {
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-line/10">
               <div className="space-y-1">
                 <span className="text-[9px] font-bold text-ink/40 uppercase tracking-widest italic block">Uptime</span>
-                <span className={cn("text-lg font-bold italic", (monitor.uptime_percent || 0) < 99 ? "text-rose-500" : "text-emerald-500")}>
-                  {monitor.uptime_percent?.toFixed(1)}%
-                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className={cn("text-lg font-bold italic", (monitor.uptime_percent || 0) < 99 ? "text-rose-500" : "text-emerald-500")}>
+                    {monitor.uptime_percent?.toFixed(1)}%
+                  </span>
+                  <span className="text-[8px] font-bold text-ink/30 italic">
+                    ({monitor.recent_pings?.filter(p => p.is_up === 1).length || 0} UP)
+                  </span>
+                </div>
               </div>
               <div className="space-y-1">
                 <span className="text-[9px] font-bold text-ink/40 uppercase tracking-widest italic block">Latency</span>

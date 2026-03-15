@@ -209,7 +209,7 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-12 transition-all duration-700">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 transition-all duration-700">
       
       {/* Real-time Ticker */}
       <div className="-mx-4 sm:-mx-8 lg:-mx-12 mb-8">
@@ -294,11 +294,11 @@ export default function Dashboard() {
       </div>
 
       {/* Real-time Monitor & System Info Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+        <div className="xl:col-span-3">
            <RealtimeFeed monitors={monitors} />
         </div>
-        <div>
+        <div className="xl:col-span-1">
            <SystemDistribution stats={stats} />
         </div>
       </div>
