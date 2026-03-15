@@ -74,6 +74,7 @@ export default function Auth() {
 
       // Store session data in localStorage for persistence
       localStorage.setItem('token', data.session.access_token);
+      localStorage.setItem('refresh_token', data.session.refresh_token || '');
       
       const user = data.session.user;
       localStorage.setItem('user', JSON.stringify({

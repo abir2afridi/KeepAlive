@@ -24,6 +24,7 @@ import DnsDetails from './pages/DnsDetails';
 import Manifesto from './pages/Manifesto';
 import DirectLine from './pages/DirectLine';
 import { useParams } from 'react-router-dom';
+import './utils/dataFetchTest'; // Import test utility
 
 function MonitorRedirect() {
   const { id } = useParams();
@@ -51,6 +52,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
         // Fallback: Check localStorage for token
         const localToken = localStorage.getItem('token');
+        const localRefreshToken = localStorage.getItem('refresh_token');
         const localUser = localStorage.getItem('user');
         
         if (localToken) {
@@ -58,7 +60,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
           try {
             const { data: restoredSession, error: restoreError } = await supabase.auth.setSession({
               access_token: localToken,
-              refresh_token: '' // We don't store refresh token in localStorage for security
+              refresh_token: localRefreshToken || ''
             });
 
             if (!restoreError && restoredSession.session) {
@@ -88,6 +90,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       if (session?.access_token) {
         // Session exists - store minimal info
         localStorage.setItem('token', session.access_token);
+        localStorage.setItem('refresh_token', session.refresh_token || '');
         
         // Store user data
         const user = session.user;
@@ -101,9 +104,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
         }
         
         if (mounted) setAuthState('authenticated');
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        // Token was refreshed - update stored tokens
+        localStorage.setItem('token', session.access_token);
+        localStorage.setItem('refresh_token', session.refresh_token || '');
+        console.log('Token refreshed successfully');
       } else {
         // No session - clear stored data
         localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
         if (mounted) setAuthState('unauthenticated');
       }
