@@ -126,11 +126,14 @@ export default function Auth() {
 
         // Use Supabase data directly
         const user = data.session.user;
+        const { data: profile } = await supabase.from('profiles').select('name, status_slug, plan').eq('id', user.id).single();
+        
         localStorage.setItem('user', JSON.stringify({
           id: user.id,
           email: user.email,
-          name: user.user_metadata?.full_name || user.email?.split('@')[0],
-          plan: 'free'
+          name: profile?.name || user.user_metadata?.full_name || user.email?.split('@')[0],
+          plan: profile?.plan || 'free',
+          status_slug: profile?.status_slug
         }));
 
         console.log('Existing session found, navigating to dashboard...');
@@ -170,11 +173,14 @@ export default function Auth() {
       
       // Use Supabase user data directly - no API sync
       const supaUser = data.user;
+      const { data: profile } = await supabase.from('profiles').select('name, status_slug, plan').eq('id', supaUser?.id).single();
+
       localStorage.setItem('user', JSON.stringify({
         id: supaUser?.id,
         email: supaUser?.email,
-        name: supaUser?.user_metadata?.full_name || supaUser?.email?.split('@')[0],
-        plan: 'free',
+        name: profile?.name || supaUser?.user_metadata?.full_name || supaUser?.email?.split('@')[0],
+        plan: profile?.plan || 'free',
+        status_slug: profile?.status_slug
       }));
 
       console.log('Login successful, navigating to dashboard...');

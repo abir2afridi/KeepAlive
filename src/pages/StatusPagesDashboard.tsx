@@ -5,6 +5,7 @@ import {
   RefreshCw, BarChart3, Clock, Zap, Cpu, Lock, LayoutDashboard
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { supabase } from '../supabase/client';
 import { cn } from '../components/Layout';
 import { AnalogMeter } from '../components/ui/AnalogMeter';
 import {
@@ -91,8 +92,7 @@ const LatencyChart = ({ data, color = "#5551FF" }: { data: { response_time: numb
 export default function StatusPagesDashboard() {
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
-  const statusSlug = user?.status_slug || '';
-  
+  const [statusSlug, setStatusSlug] = useState(user?.status_slug || '');
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -151,10 +151,39 @@ export default function StatusPagesDashboard() {
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(() => fetchData(true), 30000);
+    const init = async () => {
+      let currentSlug = statusSlug;
+      
+      // If slug is missing, try fetching it from the DB profile
+      if (!currentSlug && user?.id) {
+        setLoading(true);
+        try {
+          const { data } = await supabase.from('profiles').select('status_slug').eq('id', user.id).single();
+          if (data?.status_slug) {
+            currentSlug = data.status_slug;
+            setStatusSlug(currentSlug);
+            // Sync back to localstorage for next visit
+             const updatedUser = { ...user, status_slug: currentSlug };
+             localStorage.setItem('user', JSON.stringify(updatedUser));
+          }
+        } catch (e) {
+          console.error("Failed to fetch recovery slug", e);
+        }
+      }
+
+      if (currentSlug) {
+        fetchData();
+      } else {
+        setLoading(false);
+      }
+    };
+
+    init();
+    const interval = setInterval(() => {
+      if (statusSlug) fetchData(true);
+    }, 30000);
     return () => clearInterval(interval);
-  }, [statusSlug]);
+  }, [statusSlug, user?.id]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(fullUrl);

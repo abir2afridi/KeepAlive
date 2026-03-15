@@ -92,15 +92,24 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
         localStorage.setItem('token', session.access_token);
         localStorage.setItem('refresh_token', session.refresh_token || '');
         
-        // Store user data
         const user = session.user;
         if (user) {
-          localStorage.setItem('user', JSON.stringify({
-            id: user.id,
-            email: user.email,
-            name: user.user_metadata?.full_name || user.email?.split('@')[0],
-            plan: 'free'
-          }));
+          // Fetch additional profile data (name, status_slug, plan)
+          supabase
+            .from('profiles')
+            .select('name, status_slug, plan')
+            .eq('id', user.id)
+            .single()
+            .then(({ data: profile }) => {
+              localStorage.setItem('user', JSON.stringify({
+                id: user.id,
+                email: user.email,
+                name: profile?.name || user.user_metadata?.full_name || user.email?.split('@')[0],
+                plan: profile?.plan || 'free',
+                status_slug: profile?.status_slug || user.email?.split('@')[0]
+              }));
+              if (mounted) setAuthState('authenticated');
+            });
         }
         
         if (mounted) setAuthState('authenticated');

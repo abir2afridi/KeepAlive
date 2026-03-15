@@ -29,9 +29,12 @@ interface MonitorDetail {
   last_response_time: number;
   uptime_percent: number;
   recent_pings: Ping[];
-  interval: number;
+  interval_seconds: number;
+  timeout_seconds: number;
   method: string;
+  port?: number;
   last_error_message?: string;
+  headers?: string;
 }
 
 const getMonitorStatus = (monitor: MonitorDetail) => {
@@ -144,6 +147,7 @@ export default function MonitorDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
 
   // Helper function to safely get numeric values
   const getSafeValue = (value: any, defaultValue: number = 0): number => {
@@ -187,7 +191,17 @@ export default function MonitorDetails() {
 
       const payload = await res.json();
       if (!res.ok) throw new Error(payload.error || 'Failed to fetch monitor');
-      setMonitor(payload);
+      
+      setMonitor(prev => {
+        if (!prev) return payload;
+        // Merge recent pings to avoid losing real-time updates
+        const existingPingTimes = new Set(prev.recent_pings.map(p => p.created_at));
+        const newPings = payload.recent_pings.filter((p: Ping) => !existingPingTimes.has(p.created_at));
+        return {
+          ...payload,
+          recent_pings: [...newPings, ...prev.recent_pings].slice(0, 100)
+        };
+      });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -206,19 +220,58 @@ export default function MonitorDetails() {
       else navigate('/auth');
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authSub } = supabase.auth.onAuthStateChange((_event, session) => {
       const token = session?.access_token || localStorage.getItem('token');
       if (token) fetchMonitor(true);
       else navigate('/auth');
     });
 
+    // Setup Realtime Subscription
+    const channel = supabase
+      .channel(`monitor-pings-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'pings',
+          filter: `monitor_id=eq.${id}`
+        },
+        (payload) => {
+          console.log('Realtime ping received:', payload);
+          const newPing: Ping = {
+            response_time: payload.new.response_time,
+            is_up: payload.new.is_up ? 1 : 0,
+            error_message: payload.new.error_message,
+            created_at: payload.new.created_at
+          };
+          
+          setMonitor(current => {
+            if (!current) return null;
+            return {
+              ...current,
+              status: newPing.is_up ? 'up' : 'down',
+              current_is_up: newPing.is_up,
+              last_response_time: newPing.response_time,
+              last_error_message: newPing.error_message || current.last_error_message,
+              recent_pings: [newPing, ...current.recent_pings].slice(0, 100)
+            };
+          });
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') setRealtimeConnected(true);
+        else setRealtimeConnected(false);
+      });
+
     const interval = setInterval(() => {
       fetchMonitor(true);
-    }, 15000);
+    }, 60000); // Less frequent poll since we have realtime
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      authSub.subscription.unsubscribe();
+      supabase.removeChannel(channel);
       clearInterval(interval);
     };
   }, [id]);
@@ -380,6 +433,69 @@ export default function MonitorDetails() {
                 </div>
             </div>
 
+            {/* Protocol & Distribution */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/5 p-8 rounded-[32px] space-y-4 shadow-sm relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="flex items-center gap-3 text-ink relative z-10 transition-colors">
+                     <Binary className="size-4 text-primary" />
+                     <h4 className="text-[10px] font-bold uppercase tracking-widest italic">Node Configuration</h4>
+                  </div>
+                  <div className="space-y-3 pt-2 relative z-10">
+                     <div className="flex justify-between items-center border-b border-line/30 pb-2">
+                        <span className="text-[9px] font-bold text-ink/60 uppercase italic">Method</span>
+                        <span className="text-[10px] font-black text-primary italic uppercase">{monitor.method || 'GET'}</span>
+                     </div>
+                     <div className="flex justify-between items-center border-b border-line/30 pb-2">
+                        <span className="text-[9px] font-bold text-ink/60 uppercase italic">Port</span>
+                        <span className="text-[10px] font-black text-primary italic uppercase">{monitor.port || (monitor.url.startsWith('https') ? '443' : '80')}</span>
+                     </div>
+                     <div className="flex justify-between items-center border-b border-line/30 pb-2">
+                        <span className="text-[9px] font-bold text-ink/60 uppercase italic">Interval</span>
+                        <span className="text-[10px] font-black text-primary italic uppercase font-mono">{monitor.interval_seconds}s</span>
+                     </div>
+                     <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-bold text-ink/60 uppercase italic">Timeout</span>
+                        <span className="text-[10px] font-black text-primary italic uppercase font-mono">{monitor.timeout_seconds || 10}s</span>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/5 p-8 rounded-[32px] space-y-4 shadow-sm relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="flex items-center gap-3 text-ink relative z-10">
+                     <BarChart3 className="size-4 text-emerald-500" />
+                     <h4 className="text-[10px] font-bold uppercase tracking-widest italic">Response Distribution</h4>
+                  </div>
+                  <div className="pt-2 flex items-end gap-1 h-24 relative z-10">
+                     {[...Array(12)].map((_, i) => {
+                       const bucketPings = recentPings.filter(p => {
+                         const latency = p.response_time;
+                         if (i === 11) return latency >= 1100;
+                         return latency >= i * 100 && latency < (i + 1) * 100;
+                       }).length;
+                       const height = Math.min(100, (bucketPings / (recentPings.length || 1)) * 500);
+                       return (
+                         <div 
+                           key={i} 
+                           className="flex-1 bg-emerald-500/20 hover:bg-emerald-500/40 transition-colors rounded-t-sm relative group/bar"
+                           style={{ height: `${Math.max(4, height)}%` }}
+                         >
+                           <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[6px] px-1 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 font-bold italic">
+                             {i === 11 ? '>1.1s' : `${i * 100}ms`}
+                           </div>
+                         </div>
+                       );
+                     })}
+                  </div>
+                  <div className="flex justify-between text-[7px] font-bold text-ink/30 uppercase tracking-widest italic pt-1 relative z-10">
+                     <span>0ms</span>
+                     <span className="opacity-60">Distribution Spectrum</span>
+                     <span>1.1s+</span>
+                  </div>
+               </div>
+            </div>
+
             {/* Node Event History */}
             <div className="space-y-6">
                <div className="flex items-center justify-between px-2">
@@ -430,60 +546,91 @@ export default function MonitorDetails() {
             <div className="bg-slate-900 dark:bg-panel p-8 rounded-[40px] space-y-6 text-white dark:text-ink relative overflow-hidden group shadow-xl">
                <div className="absolute top-0 right-0 size-32 bg-primary/20 blur-3xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-1000" />
                <div className="relative z-10 space-y-6">
-                  <div className="size-10 bg-panel/10 dark:bg-black/5 rounded-xl flex items-center justify-center border border-white/10 dark:border-black/10">
-                     <Wifi className="size-5" />
+                  <div className="flex items-center justify-between">
+                    <div className="size-10 bg-panel/10 dark:bg-black/5 rounded-xl flex items-center justify-center border border-white/10 dark:border-black/10">
+                       <Wifi className="size-5" />
+                    </div>
+                    {realtimeConnected && (
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+                        <div className="size-1 bg-emerald-500 rounded-full animate-ping" />
+                        <span className="text-[6px] font-bold text-emerald-500 uppercase tracking-widest italic">Live Feed</span>
+                      </div>
+                    )}
                   </div>
                   <div>
-                    <h4 className="text-lg font-bold uppercase tracking-tight italic">Operations</h4>
-                    <p className="text-[9px] opacity-60 mt-1 uppercase tracking-widest font-bold italic">Global Cluster Delta</p>
+                    <h4 className="text-lg font-bold uppercase tracking-tight italic">Operations Matrix</h4>
+                    <p className="text-[9px] opacity-60 mt-1 uppercase tracking-widest font-bold italic">Active Monitoring Node</p>
                   </div>
                   <div className="space-y-4 pt-4 border-t border-white/10 dark:border-black/5">
                     {[
-                      { label: 'Check Interval', val: `${monitor.interval}s`, icon: Clock },
-                      { label: 'Node Status', val: 'Verified', icon: Lock },
-                      { label: 'Engine', val: 'v.4.0.2', icon: Cpu }
+                      { label: 'Check Interval', val: `${monitor.interval_seconds}s`, icon: Clock },
+                      { label: 'Request Timeout', val: `${monitor.timeout_seconds || 10}s`, icon: Clock },
+                      { label: 'Node Verified', val: 'True', icon: Lock },
+                      { label: 'Stream Mode', val: realtimeConnected ? 'Real-time' : 'Polling', icon: Cpu }
                     ].map((spec, i) => (
                       <div key={i} className="flex justify-between items-center text-[9px] font-bold uppercase tracking-widest italic">
-                         <span className="opacity-40">{spec.label}</span>
-                         <span className="text-primary">{spec.val}</span>
+                         <div className="flex items-center gap-2">
+                           <spec.icon className="size-2.5 opacity-40" />
+                           <span className="opacity-40">{spec.label}</span>
+                         </div>
+                         <span className="text-primary font-mono">{spec.val}</span>
                       </div>
                     ))}
                   </div>
                </div>
             </div>
 
-            <div className="bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/5 p-8 rounded-[40px] space-y-6 shadow-sm">
+            <div className="bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/5 p-8 rounded-[40px] space-y-6 shadow-sm relative overflow-hidden">
                <div className="size-10 bg-primary/5 rounded-xl flex items-center justify-center text-primary border border-primary/10">
-                  <Info className="size-5" />
+                  <Gauge className="size-5" />
                </div>
                <div className="space-y-5">
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink  italic">Node Intelligence</h4>
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink  italic">Diagnostic Metrics</h4>
                   <div className="space-y-6">
-                    <div className="-mx-2 -mt-4 mb-2 relative scale-[0.85] origin-top">
-                       <AnalogMeter 
-                         value={getSafeValue(monitor.uptime_percent)}
-                         min={0}
-                         max={100}
-                         unit="%"
-                         label="Stability"
-                         colorClass="emerald"
-                       />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-base dark:bg-panel/5 rounded-2xl border border-line dark:border-white/10">
+                        <span className="text-[7px] font-bold text-ink/40 uppercase tracking-widest block mb-1 italic text-center">Min Latency</span>
+                        <p className="text-sm font-bold text-emerald-500 tabular-nums italic text-center">
+                          {Math.min(...(recentPings.filter(p => p.is_up).map(p => p.response_time) || [0]))}ms
+                        </p>
+                      </div>
+                      <div className="p-3 bg-base dark:bg-panel/5 rounded-2xl border border-line dark:border-white/10">
+                        <span className="text-[7px] font-bold text-ink/40 uppercase tracking-widest block mb-1 italic text-center">Max Latency</span>
+                        <p className="text-sm font-bold text-rose-500 tabular-nums italic text-center">
+                          {Math.max(...(recentPings.filter(p => p.is_up).map(p => p.response_time) || [0]))}ms
+                        </p>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                       <span className="text-[9px] font-bold text-ink/70 uppercase tracking-widest italic">Temporal Variance</span>
+                    <div className="space-y-1 pt-2">
+                       <span className="text-[9px] font-bold text-ink/70 uppercase tracking-widest italic">Projected Performance</span>
                        <div className="flex items-baseline gap-2">
-                          <span className="text-xl font-bold text-ink  tabular-nums italic tracking-tighter">0.02ms</span>
-                          <span className="text-[8px] font-bold text-ink/70 uppercase tracking-widest italic">Verified</span>
+                          <span className="text-xl font-bold text-ink  tabular-nums italic tracking-tighter">
+                            {(recentPings.reduce((acc, p) => acc + p.response_time, 0) / (recentPings.length || 1)).toFixed(1)}ms
+                          </span>
+                          <span className="text-[8px] font-bold text-primary uppercase tracking-widest italic">Avg Delta</span>
                        </div>
                     </div>
                   </div>
                </div>
             </div>
 
-            <div className="p-8 bg-base dark:bg-panel/[0.01] border border-line dark:border-white/5 rounded-[40px] space-y-4 text-center shadow-sm">
+            {monitor.type === 'SSL' && monitor.last_error_message?.includes('SSL Valid') && (
+              <div className="bg-emerald-500/5 border border-emerald-500/10 p-8 rounded-[40px] space-y-4 shadow-sm">
+                <div className="size-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500">
+                  <ShieldCheck className="size-5" />
+                </div>
+                <div>
+                   <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600  italic">SSL Integrity</h4>
+                   <p className="text-sm font-bold text-ink italic mt-1">{monitor.last_error_message}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="p-8 bg-base dark:bg-panel/[0.01] border border-line dark:border-white/5 rounded-[40px] space-y-4 text-center shadow-sm relative group overflow-hidden">
+               <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                <Database className="size-5 text-ink/70 dark:text-ink/60 mx-auto" />
-               <p className="text-[9px] font-bold text-ink/70 uppercase tracking-widest leading-relaxed italic">
-                  Registry data encrypted. Performance history cached for 30 cycles.
+               <p className="text-[9px] font-bold text-ink/70 uppercase tracking-widest leading-relaxed italic relative z-10">
+                  Node persistence active. Real-time telemetry synchronized with primary registry cluster.
                </p>
             </div>
 

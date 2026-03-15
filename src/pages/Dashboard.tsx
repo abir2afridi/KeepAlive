@@ -7,6 +7,9 @@ import {
 import { cn } from '../components/Layout';
 import { AnalogMeter } from '../components/ui/AnalogMeter';
 import { supabase } from '../supabase/client';
+import { RealtimeFeed } from '../components/Dashboard/RealtimeFeed';
+import { SystemDistribution } from '../components/Dashboard/SystemDistribution';
+import { LiveTicker } from '../components/LiveTicker';
 
 interface Monitor {
   id: string;
@@ -206,9 +209,14 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 sm:space-y-12 transition-all duration-700">
+    <div className="max-w-6xl mx-auto space-y-12 transition-all duration-700">
       
-      <div className="flex items-center justify-between pb-4 border-b border-line/40">
+      {/* Real-time Ticker */}
+      <div className="-mx-4 sm:-mx-8 lg:-mx-12 mb-8">
+        <LiveTicker className="rounded-none border-y border-line/20 bg-emerald-500/10 backdrop-blur-3xl" />
+      </div>
+
+      <div className="flex items-center justify-between pb-6 border-b border-line/40">
         <div className="space-y-1">
           <h2 className="text-xs font-bold text-ink/60 uppercase tracking-[0.3em] italic">Operational Intelligence</h2>
           {lastUpdated && !quotaExceeded && (
@@ -243,17 +251,18 @@ export default function Dashboard() {
       )}
 
       {/* Stats Grid - Minimalist & Premium */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-panel border border-line/40 p-8 rounded-3xl flex flex-col gap-6 shadow-sm hover:translate-y-[-2px] transition-all">
-           <div className="flex items-center justify-between">
-              <div className="size-10 rounded-xl flex items-center justify-center border border-current/10 shadow-sm bg-primary/5 text-primary">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-panel border border-line/40 p-8 rounded-3xl flex flex-col gap-6 shadow-sm hover:translate-y-[-2px] transition-all group overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+            <div className="flex items-center justify-between relative z-10">
+              <div className="size-10 rounded-xl flex items-center justify-center border border-primary/10 shadow-sm bg-primary/5 text-primary group-hover:scale-110 transition-transform">
                  <Activity className="size-5" />
               </div>
               {(isRefreshing || loading) && !quotaExceeded && <RefreshCw className="size-3 text-primary animate-spin" />}
            </div>
-           <div>
+           <div className="relative z-10">
               <span className="text-[9px] font-bold text-ink/60 uppercase tracking-[0.2em] italic mb-1.5 block">Active nodes</span>
-              <h2 className="text-3xl font-black tracking-tight text-ink tabular-nums italic">{stats.total_monitors}</h2>
+              <h2 className="text-4xl font-black tracking-tight text-ink tabular-nums italic group-hover:text-primary transition-colors">{stats.total_monitors}</h2>
            </div>
         </div>
 
@@ -281,6 +290,16 @@ export default function Dashboard() {
              className="w-full"
            />
            <p className="text-[9px] text-ink/40 italic mt-2 text-center px-4">Global velocity synchronized across all active edge nodes.</p>
+        </div>
+      </div>
+
+      {/* Real-time Monitor & System Info Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+           <RealtimeFeed monitors={monitors} />
+        </div>
+        <div>
+           <SystemDistribution stats={stats} />
         </div>
       </div>
 
