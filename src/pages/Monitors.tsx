@@ -63,7 +63,9 @@ export default function Monitors() {
       
       if (res.ok) {
         const data = await res.json();
-        setMonitors(Array.isArray(data) ? data : []);
+        // API returns { monitors: [...] } — handle both formats
+        const list = Array.isArray(data) ? data : (data.monitors || []);
+        setMonitors(list);
       }
     } catch (error) {
       console.error('Failed to fetch monitors', error);

@@ -70,15 +70,18 @@ export default function CreateMonitor() {
       })
       .then(res => res.json())
       .then(data => {
-        const monitor = data.find((m: any) => m.id === id);
+        // API returns { monitors: [...] } — access the array correctly
+        const monitorsList = Array.isArray(data) ? data : (data.monitors || []);
+        const monitor = monitorsList.find((m: any) => m.id === id);
         if (monitor) {
           setFormData({
             name: monitor.name,
             url: monitor.url,
             type: monitor.type,
-            interval: monitor.interval,
+            interval: monitor.interval_seconds || monitor.interval || 300,
             method: monitor.method,
             body: monitor.body || '',
+            port: monitor.port || 80,
             keep_alive: Boolean(monitor.keep_alive),
             expected_status: monitor.expected_status || 200
           });
@@ -95,6 +98,8 @@ export default function CreateMonitor() {
                 setAlerts(parsed);
              } catch (e) { console.error('Failed to parse alerts', e); }
           }
+        } else {
+          setError('Monitor not found in registry');
         }
         setLoading(false);
       })

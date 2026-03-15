@@ -137,7 +137,9 @@ export default function StatusPagesDashboard() {
       
       if (!res.ok) throw new Error(data.error || 'Failed to load status');
       
-      setMonitors(data.monitors || []);
+      // API returns { status_page, monitors } or just { monitors }
+      const monitorsList = data.monitors || [];
+      setMonitors(monitorsList);
       setError('');
     } catch (err: any) {
       console.error('Status fetch error:', err);

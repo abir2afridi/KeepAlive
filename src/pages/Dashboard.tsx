@@ -133,7 +133,8 @@ export default function Dashboard() {
         const monitorsData = await monitorsRes.json();
         const statsData = await statsRes.json();
         
-        const validMonitors = Array.isArray(monitorsData) ? monitorsData : [];
+        // API returns { monitors: [...] } — handle both formats
+        const validMonitors = Array.isArray(monitorsData) ? monitorsData : (monitorsData.monitors || []);
         // Handle both old and new API response structures
         const validStats = statsData.total_monitors !== undefined 
           ? {
