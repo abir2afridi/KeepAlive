@@ -22,6 +22,7 @@ interface Monitor {
   name: string;
   url: string;
   type: string;
+  status: 'up' | 'down' | 'unknown' | 'paused';
   current_is_up: number | null;
   uptime_percent: number | null;
   avg_response_time: number;
@@ -128,7 +129,7 @@ export default function StatusPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-base dark:bg-background-dark flex flex-col items-center justify-center gap-6">
+      <div className="min-h-screen bg-base flex flex-col items-center justify-center gap-6">
         <Activity className="size-10 text-primary animate-spin" />
         <span className="text-[10px] font-bold uppercase tracking-widest text-ink/70">Loading Observatory...</span>
       </div>
@@ -137,7 +138,7 @@ export default function StatusPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-base dark:bg-background-dark flex items-center justify-center p-6">
+      <div className="min-h-screen bg-base flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center space-y-8">
            <div className="size-20 bg-rose-500/10 rounded-3xl flex items-center justify-center mx-auto border border-rose-500/20 shadow-lg">
              <ShieldAlert className="size-10 text-rose-500" />
@@ -158,22 +159,27 @@ export default function StatusPage() {
   }
 
   const getMonitorStatus = (monitor: Monitor) => {
-    // Handle different possible status fields
-    if (monitor.current_is_up !== undefined) {
+    // 1. Prioritize verified status from 3-strike rule
+    if (monitor.status === 'up') return true;
+    if (monitor.status === 'down') return false;
+    
+    // 2. If status is unknown/paused, check real-time indicator but 
+    // default to Operational for new monitors to avoid false alarms
+    if (monitor.status === 'paused') return true; // Paused monitors are technically not failing
+
+    if (monitor.current_is_up !== undefined && monitor.current_is_up !== null) {
+      // If we have a real-time flag and status is unknown, only show down if current indicator is down
+      // Otherwise, assume it is warming up or stable.
       return monitor.current_is_up === 1;
     }
-    // Fallback to checking if uptime is available and > 0
-    if ((monitor as any).uptime !== undefined) {
-      return (monitor as any).uptime > 0;
-    }
-    // Default to operational if no status data
-    return true;
+    
+    return true; // Default to operational
   };
 
   const allOperational = monitors.length > 0 && monitors.every(m => getMonitorStatus(m));
 
   return (
-    <div className="min-h-screen bg-base dark:bg-background-dark font-sans text-ink dark:text-ink/70 transition-colors duration-500">
+    <div className="min-h-screen bg-base font-sans text-ink transition-colors duration-500">
       {/* Refined Navigation */}
       <nav className="sticky top-0 z-[100] bg-panel/80 dark:bg-background-dark/80 backdrop-blur-xl border-b border-line dark:border-white/5">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">

@@ -14,13 +14,25 @@ interface Monitor {
   name: string;
   url: string;
   type: string;
+  status: 'up' | 'down' | 'unknown' | 'paused';
   current_is_up: number | null;
+  last_is_up: number | null;
   last_response_time: number | null;
   uptime_percent: number | null;
   last_pinged_at: string | null;
   last_error_message?: string;
   recent_pings: { response_time: number; is_up: number; error_message?: string; created_at: string }[];
 }
+
+const getMonitorStatus = (monitor: Monitor) => {
+  if (monitor.status === 'up') return true;
+  if (monitor.status === 'down') return false;
+  if (monitor.status === 'paused') return true;
+  if (monitor.current_is_up !== undefined && monitor.current_is_up !== null) {
+    return monitor.current_is_up === 1;
+  }
+  return true;
+};
 
 const Sparkline = ({ data, color = "#5551FF" }: { data: any[], color?: string }) => {
   if (!data || data.length < 2) return <div className="h-full w-full bg-slate-200/5 rounded animate-pulse" />;
@@ -207,7 +219,7 @@ export default function Monitors() {
                     <div className="flex items-center gap-5">
                       <div className={cn(
                         "size-12 rounded-2xl flex items-center justify-center border transition-all",
-                        monitor.current_is_up === 1 
+                        getMonitorStatus(monitor) 
                           ? "bg-emerald-500/5 text-emerald-500 border-emerald-500/10" 
                           : "bg-rose-500/5 text-rose-500 border-rose-500/10"
                       )}>
@@ -219,7 +231,7 @@ export default function Monitors() {
                            <span className="text-[8px] font-bold uppercase tracking-widest text-ink/60 italic px-2 py-0.5 bg-line/10 rounded-full">{monitor.type}</span>
                         </div>
                         <p className="text-[10px] font-medium text-slate-400 italic font-mono truncate max-w-[200px]">{monitor.url}</p>
-                        {monitor.current_is_up === 0 && monitor.last_error_message && (
+                        {!getMonitorStatus(monitor) && monitor.last_error_message && (
                           <p className="text-[9px] text-rose-500 font-bold block italic uppercase tracking-tighter mt-1">
                             REASON: {monitor.last_error_message}
                           </p>
@@ -230,12 +242,12 @@ export default function Monitors() {
                   <td className="px-6 py-8">
                     <div className={cn(
                       "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest border italic",
-                      monitor.current_is_up === 1 
+                      getMonitorStatus(monitor) 
                         ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-500 border-emerald-500/10" 
                         : "bg-rose-500/5 text-rose-600 dark:text-rose-500 border-rose-500/10"
                     )}>
-                       <div className={cn("size-2 rounded-full", monitor.current_is_up === 1 ? "bg-emerald-500 animate-pulse" : "bg-rose-500")} />
-                       {monitor.current_is_up === 1 ? 'Operational' : 'Critical'}
+                       <div className={cn("size-2 rounded-full", getMonitorStatus(monitor) ? "bg-emerald-500 animate-pulse" : "bg-rose-500")} />
+                       {getMonitorStatus(monitor) ? 'Operational' : 'Critical'}
                     </div>
                   </td>
                   <td className="px-6 py-8 text-center">

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { DnsProvider, TestResult, getSpeedCategory } from '@/types/dns';
 import 'leaflet/dist/leaflet.css';
-import { Loader2, Crosshair } from 'lucide-react';
+import { Loader2, Crosshair, Navigation } from 'lucide-react';
 
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -24,6 +24,7 @@ function MapUpdater({ center }: { center: [number, number] }) {
 function FlyTo({ lat, lng, zoom }: { lat: number; lng: number; zoom: number }) {
   const map = useMap();
   useEffect(() => {
+    if (isNaN(lat) || isNaN(lng) || lat === null || lng === null) return;
     map.flyTo([lat, lng], zoom, { duration: 1.5 });
   }, [lat, lng, zoom, map]);
   return null;
@@ -80,7 +81,7 @@ export function GlobalMap({ providers, results, onSelectProvider }: GlobalMapPro
         ref={mapRef}
         center={[20, 0]}
         zoom={2}
-        style={{ height: '100%', width: '100%', background: isDark ? '#0a0a0a' : '#f0f0f0' }}
+        style={{ height: '100%', width: '100%', background: isDark ? '#050609' : '#e5e7eb' }}
         minZoom={2}
         maxZoom={12}
         scrollWheelZoom={true}
@@ -92,11 +93,11 @@ export function GlobalMap({ providers, results, onSelectProvider }: GlobalMapPro
         <TileLayer
           url={isDark
             ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           }
           attribution={isDark
             ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           }
         />
 
@@ -121,6 +122,9 @@ export function GlobalMap({ providers, results, onSelectProvider }: GlobalMapPro
         )}
 
         {providers.map((provider) => {
+          // Skip providers with invalid coordinates to prevent "Invalid LatLng" errors
+          if (isNaN(provider.lat) || isNaN(provider.lng) || provider.lat === null || provider.lng === null) return null;
+
           const result = results.get(provider.id);
           const speed = result?.status === 'complete'
             ? getSpeedCategory(result.avgLatency)
@@ -165,19 +169,19 @@ export function GlobalMap({ providers, results, onSelectProvider }: GlobalMapPro
       <button
         onClick={handleDetectLocation}
         disabled={gpsDetecting}
-        className="absolute bottom-6 right-6 z-[1001] flex items-center gap-2 px-4 py-2.5 rounded-xl
-            bg-base/85 backdrop-blur-md border border-line/40
-            hover:border-primary/40 hover:bg-base/95
-            text-[10px] font-black uppercase tracking-widest text-ink
-            transition-all shadow-xl disabled:opacity-50
+        className="absolute top-6 right-6 z-[1001] flex items-center gap-2 px-5 py-3 rounded-2xl
+            bg-primary text-white border border-primary/20
+            hover:bg-primary/90 shadow-[0_8px_30px_rgba(85,81,255,0.3)]
+            text-[11px] font-black uppercase tracking-[0.15em]
+            transition-all duration-300 disabled:opacity-50
             group"
       >
         {gpsDetecting ? (
-          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
-          <Crosshair className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+          <Navigation className="h-4 w-4 group-hover:rotate-12 transition-transform" />
         )}
-        {gpsDetecting ? 'Detecting...' : 'Detect Location'}
+        <span>{gpsDetecting ? 'Locating...' : 'Detect My Location'}</span>
       </button>
 
       {/* Error feedback */}

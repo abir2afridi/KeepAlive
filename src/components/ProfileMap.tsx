@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useTheme } from '../contexts/ThemeContext';
-import { Crosshair, Loader2 } from 'lucide-react';
+import { Crosshair, Loader2, Navigation } from 'lucide-react';
 
 // Custom marker icon — pulsing blue dot
 const createUserIcon = () => {
@@ -42,6 +42,7 @@ const createGpsIcon = () => {
 function MapController({ lat, lng }: { lat: number; lng: number }) {
     const map = useMap();
     useEffect(() => {
+        if (isNaN(lat) || isNaN(lng) || lat === null || lng === null) return;
         map.setView([lat, lng], 10, { animate: true });
     }, [lat, lng, map]);
     return null;
@@ -51,6 +52,7 @@ function MapController({ lat, lng }: { lat: number; lng: number }) {
 function FlyTo({ lat, lng, zoom }: { lat: number; lng: number; zoom: number }) {
     const map = useMap();
     useEffect(() => {
+        if (isNaN(lat) || isNaN(lng) || lat === null || lng === null) return;
         map.flyTo([lat, lng], zoom, { duration: 1.5 });
     }, [lat, lng, zoom, map]);
     return null;
@@ -121,9 +123,9 @@ export default function ProfileMap({ lat, lng, city, country }: ProfileMapProps)
     return (
         <div className="w-full h-full relative z-0" style={{ minHeight: '280px' }}>
             <MapContainer
-                center={[lat, lng]}
+                center={[lat || 20, lng || 0]}
                 zoom={10}
-                style={{ height: '100%', width: '100%', background: isDark ? '#0a0a0a' : '#f0f0f0' }}
+                style={{ height: '100%', width: '100%', background: isDark ? '#050609' : '#e5e7eb' }}
                 minZoom={3}
                 maxZoom={18}
                 scrollWheelZoom={true}
@@ -134,24 +136,26 @@ export default function ProfileMap({ lat, lng, city, country }: ProfileMapProps)
                 <TileLayer
                     url={isDark
                         ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                        : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                     }
                     attribution={isDark
                         ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                        : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                     }
                 />
 
                 {/* IP-based location marker (blue) */}
-                <Marker position={[lat, lng]} icon={createUserIcon()}>
-                    <Popup>
-                        <div className="text-sm font-bold">
-                            <p className="font-black">{city || 'IP Location'}</p>
-                            {country && <p className="text-xs text-gray-500">{country}</p>}
-                            <p className="text-[10px] text-blue-500 mt-0.5">IP-based (approximate)</p>
-                        </div>
-                    </Popup>
-                </Marker>
+                {!isNaN(lat) && !isNaN(lng) && lat !== null && lng !== null && (
+                    <Marker position={[lat, lng]} icon={createUserIcon()}>
+                        <Popup>
+                            <div className="text-sm font-bold">
+                                <p className="font-black">{city || 'IP Location'}</p>
+                                {country && <p className="text-xs text-gray-500">{country}</p>}
+                                <p className="text-[10px] text-blue-500 mt-0.5">IP-based (approximate)</p>
+                            </div>
+                        </Popup>
+                    </Marker>
+                )}
 
                 {/* GPS-detected location marker (red) */}
                 {gpsLocation && (
@@ -175,20 +179,20 @@ export default function ProfileMap({ lat, lng, city, country }: ProfileMapProps)
             <button
                 onClick={handleDetectLocation}
                 disabled={gpsDetecting}
-                className="absolute bottom-4 right-4 z-[1001] flex items-center gap-2 px-3 py-2 rounded-xl
-                    bg-base/85 backdrop-blur-md border border-line/50
-                    hover:border-primary/40 hover:bg-base/95
-                    text-[10px] font-black uppercase tracking-widest text-ink
-                    transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed
+                className="absolute top-4 right-4 z-[1001] flex items-center gap-2 px-4 py-2.5 rounded-xl
+                    bg-primary text-white border border-primary/20
+                    hover:bg-primary/90 shadow-[0_8px_30px_rgba(85,81,255,0.3)]
+                    text-[10px] font-black uppercase tracking-widest
+                    transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
                     group"
                 title="Detect precise GPS location"
             >
                 {gpsDetecting ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                    <Crosshair className="h-3.5 w-3.5 text-primary group-hover:scale-110 transition-transform" />
+                    <Navigation className="h-3.5 w-3.5 group-hover:rotate-12 transition-transform" />
                 )}
-                {gpsDetecting ? 'Detecting...' : gpsLocation ? 'Re-detect' : 'Detect Location'}
+                <span>{gpsDetecting ? 'Locating...' : 'Detect My Location'}</span>
             </button>
 
             {/* GPS accuracy info */}

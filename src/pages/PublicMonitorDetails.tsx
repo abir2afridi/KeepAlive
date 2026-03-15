@@ -21,7 +21,9 @@ interface MonitorDetail {
   name: string;
   url: string;
   type: string;
+  status: 'up' | 'down' | 'unknown' | 'paused';
   current_is_up: number;
+  last_is_up: number;
   last_response_time: number;
   uptime_percent: number;
   recent_pings: Ping[];
@@ -29,6 +31,16 @@ interface MonitorDetail {
   method: string;
   last_error_message?: string;
 }
+
+const getMonitorStatus = (monitor: MonitorDetail) => {
+  if (monitor.status === 'up') return true;
+  if (monitor.status === 'down') return false;
+  if (monitor.status === 'paused') return true;
+  if (monitor.current_is_up !== undefined && monitor.current_is_up !== null) {
+    return monitor.current_is_up === 1;
+  }
+  return true;
+};
 
 import {
   ChartContainer,
@@ -160,7 +172,7 @@ export default function PublicMonitorDetails() {
     </div>
   );
 
-  const isUp = monitor.current_is_up === 1;
+  const isUp = getMonitorStatus(monitor);
 
   return (
     <div className="min-h-screen bg-base text-ink font-sans transition-colors duration-500">
@@ -203,7 +215,7 @@ export default function PublicMonitorDetails() {
               )}>
                 {isUp ? 'Operational' : 'Critical Fault'}
               </div>
-              {monitor.current_is_up === 0 && monitor.last_error_message && (
+              {!isUp && monitor.last_error_message && (
                 <div className="flex items-center gap-2 px-3 py-1 bg-rose-500/5 text-rose-500 text-[9px] font-bold uppercase rounded-lg border border-rose-500/10 italic">
                   <AlertCircle className="size-3" /> Reason: {monitor.last_error_message}
                 </div>

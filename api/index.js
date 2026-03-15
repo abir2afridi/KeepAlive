@@ -64,9 +64,9 @@ module.exports = async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Parse URL to get pathname properly
+  // Parse URL to get pathname properly and remove trailing slashes for robust matching
   const url = new URL(req.url, 'http://localhost');
-  const pathname = url.pathname;
+  let pathname = url.pathname.replace(/\/$/, '') || '/';
   const method = req.method;
 
   try {

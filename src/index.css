@@ -52,21 +52,23 @@
 }
 
 :root {
-  /* LIGHT Theme */
+  /* LIGHT Theme - Clean High-Contrast */
   --primary: #5551FF; 
-  --bg-base: #f1f5f9;
-  --bg-panel: #ffffff;
-  --border-subtle: #e2e8f0;
-  --text-main: #1e293b;
+  --bg-base: #f8f9fa; /* Warm premium ivory */
+  --bg-panel: #ffffff; /* Pure white for cards/panels */
+  --border-subtle: #edf2f7;
+  --text-main: #020617;
+  --background-dark: #f8fafc; 
 }
 
 .dark {
-  /* DARK Theme */
+  /* DARK Theme - Deep Space */
   --primary: #0df2f2;
-  --bg-base: #0a0a0a;
-  --bg-panel: #111111;
-  --border-subtle: #262626;
+  --bg-base: #050609;
+  --bg-panel: #0d1117;
+  --border-subtle: #1e293b;
   --text-main: #f8fafc;
+  --background-dark: #050609;
 }
 
 body {
@@ -210,7 +212,6 @@ body {
 
 /* Leaflet Theming */
 .leaflet-tile-pane {
-  filter: grayscale(1) invert(0);
   transition: filter 0.5s ease;
 }
 

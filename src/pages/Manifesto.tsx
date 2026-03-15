@@ -151,11 +151,53 @@ export default function Manifesto() {
             {/* Dashboard Terminology */}
             <div className="space-y-8">
               <div className="space-y-2">
-                <h4 className="text-xl font-bold text-ink italic tracking-tight">02. Intelligence Indicators</h4>
-                <p className="text-xs text-ink/60 italic leading-relaxed">Understanding the metrics on your command center dashboard.</p>
+                <h4 className="text-xl font-bold text-ink italic tracking-tight">02. Intelligence Modules</h4>
+                <p className="text-xs text-ink/60 italic leading-relaxed">Understanding the core components of your observation center.</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="p-8 bg-panel/40 border border-line/40 rounded-3xl space-y-4">
+                  <div className="flex items-center gap-3">
+                     <Globe className="size-5 text-primary" />
+                     <span className="text-xs font-black uppercase tracking-widest text-ink">GEO CLUSTERS</span>
+                  </div>
+                  <p className="text-[11px] text-ink/70 leading-relaxed font-medium italic">
+                    Visualizes your infrastructure on a high-fidelity spatial map. By mapping monitor response times to geographic coordinates, we can detect regional routing inefficiencies and CDN edge performance issues in real-time.
+                  </p>
+                </div>
+                
+                <div className="p-8 bg-panel/40 border border-line/40 rounded-3xl space-y-4">
+                  <div className="flex items-center gap-3">
+                     <Zap className="size-5 text-amber-400" />
+                     <span className="text-xs font-black uppercase tracking-widest text-ink">DNS BENCHMARK</span>
+                  </div>
+                  <p className="text-[11px] text-ink/70 leading-relaxed font-medium italic">
+                    Tests your network against 300+ global recursive resolvers. It calculates the speed of the DoH/DoT pipeline and determines the stability of your DNS provider versus public alternatives like Cloudflare (1.1.1.1) or Google (8.8.8.8).
+                  </p>
+                </div>
+
+                <div className="p-8 bg-panel/40 border border-line/40 rounded-3xl space-y-4">
+                  <div className="flex items-center gap-3">
+                     <Activity className="size-5 text-emerald-400" />
+                     <span className="text-xs font-black uppercase tracking-widest text-ink">REGISTRY STATUS</span>
+                  </div>
+                  <p className="text-[11px] text-ink/70 leading-relaxed font-medium italic">
+                    A cryptographically verified public record of your uptime. It utilizes the "3-Strike Protocol" to ensure that accidental packet loss doesn't trigger false "Down" alerts, maintaining the integrity of your reliability score.
+                  </p>
+                </div>
+
+                <div className="p-8 bg-panel/40 border border-line/40 rounded-3xl space-y-4">
+                  <div className="flex items-center gap-3">
+                     <Shield className="size-5 text-blue-400" />
+                     <span className="text-xs font-black uppercase tracking-widest text-ink">ALERT MATRIX</span>
+                  </div>
+                  <p className="text-[11px] text-ink/70 leading-relaxed font-medium italic">
+                    Multi-channel notification system. Supports Discord, Slack, Telegram, and Webhooks with specialized encryption (AES-256) for target destinations, ensuring your diagnostic data remains private and secure.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <div className="size-2 rounded-full bg-primary" />

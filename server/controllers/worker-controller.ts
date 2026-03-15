@@ -67,7 +67,6 @@ export class WorkerController {
         () => supabaseAdmin
           .from('monitors')
           .update({
-            last_is_up: isUpBool,
             last_pinged_at: statusUpdate.last_pinged_at,
             last_response_time: statusUpdate.last_response_time,
             last_status_code: statusUpdate.last_status_code,
@@ -112,11 +111,15 @@ export class WorkerController {
     const isUpConfirmed = result.isUp === 1;
 
     // 4. Handle State Changes (Incidents & Alerts)
-    const prevIsUp = monitor.last_is_up; // Last known status from DB
+    const prevIsUp = monitor.last_is_up; // Last known status from DB (null, 0, or 1)
+    const currentStatus = (monitor as any).status;
 
-    if (isDownConfirmed && prevIsUp !== 0) {
+    // Transition to DOWN if confirmed down AND (previously up OR unknown)
+    if (isDownConfirmed && (prevIsUp !== 0 || currentStatus === 'unknown')) {
       await this.handleDown(monitor, result);
-    } else if (isUpConfirmed && prevIsUp === 0) {
+    } 
+    // Transition to UP if confirmed up AND (previously down OR unknown)
+    else if (isUpConfirmed && (prevIsUp !== 1 || currentStatus === 'unknown')) {
       await this.handleUp(monitor, result);
     }
   }
@@ -150,7 +153,7 @@ export class WorkerController {
       await withBackoff(
         () => supabaseAdmin
           .from('monitors')
-          .update({ status: 'down' })
+          .update({ status: 'down', last_is_up: false })
           .eq('id', monitor.id) as any,
         { label: 'update monitor down' }
       );
@@ -185,7 +188,7 @@ export class WorkerController {
       await withBackoff(
         () => supabaseAdmin
           .from('monitors')
-          .update({ status: 'up' })
+          .update({ status: 'up', last_is_up: true })
           .eq('id', monitor.id) as any,
         { label: 'update monitor up' }
       );

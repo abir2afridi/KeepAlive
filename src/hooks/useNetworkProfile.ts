@@ -220,11 +220,12 @@ export function useNetworkProfile() {
         // Race all endpoints in parallel — first valid IPv6 wins
         const results = await Promise.allSettled([
             tryEndpoint('https://api64.ipify.org?format=json', async r => (await r.json()).ip),
-            tryEndpoint('https://api6.ipify.org?format=json', async r => (await r.json()).ip),
-            tryEndpoint('https://v6.ident.me/', async r => (await r.text()).trim()),
-            tryEndpoint('https://ifconfig.co/ip', async r => (await r.text()).trim()),
+            // redundant or frequent failure endpoints commented out to reduce console noise
+            // tryEndpoint('https://api6.ipify.org?format=json', async r => (await r.json()).ip),
+            // tryEndpoint('https://v6.ident.me/', async r => (await r.text()).trim()),
+            tryEndpoint('https://icanhazip.com/', async r => (await r.text()).trim()),
         ]);
-        const success = results.find(r => r.status === 'fulfilled') as PromiseFulfilledResult<string> | undefined;
+        const success = results.find(r => r.status === 'fulfilled' && (r as any).value.includes(':')) as PromiseFulfilledResult<string> | undefined;
         return success?.value || null;
     };
 
@@ -315,7 +316,10 @@ export function useNetworkProfile() {
 
         try {
             // Try ipapi.co first (most complete)
-            const resp = await fetch('https://ipapi.co/json/', { cache: 'no-store' });
+            const resp = await fetch('https://ipapi.co/json/', { 
+                cache: 'no-store',
+                mode: 'cors' 
+            });
             if (resp.ok) {
                 const data = await resp.json();
                 const isIPv6 = (data.ip || '').includes(':');

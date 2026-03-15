@@ -23,7 +23,9 @@ interface MonitorDetail {
   name: string;
   url: string;
   type: string;
+  status: 'up' | 'down' | 'unknown' | 'paused';
   current_is_up: number;
+  last_is_up: number;
   last_response_time: number;
   uptime_percent: number;
   recent_pings: Ping[];
@@ -31,6 +33,16 @@ interface MonitorDetail {
   method: string;
   last_error_message?: string;
 }
+
+const getMonitorStatus = (monitor: MonitorDetail) => {
+  if (monitor.status === 'up') return true;
+  if (monitor.status === 'down') return false;
+  if (monitor.status === 'paused') return true;
+  if (monitor.current_is_up !== undefined && monitor.current_is_up !== null) {
+    return monitor.current_is_up === 1;
+  }
+  return true;
+};
 
 import {
   ChartContainer,
@@ -254,14 +266,14 @@ export default function MonitorDetails() {
             </h1>
             <div className={cn(
               "px-3.5 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest border shadow-sm transition-all self-start md:self-center italic",
-              monitor.current_is_up === 1 
+              getMonitorStatus(monitor) 
                 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border-emerald-500/20" 
                 : "bg-rose-500/10 text-rose-600 dark:text-rose-500 border-rose-500/20"
             )}>
-              {monitor.current_is_up === 1 ? 'Operational' : 'Critical Fault'}
+              {getMonitorStatus(monitor) ? 'Operational' : 'Critical Fault'}
             </div>
           </div>
-          {monitor.current_is_up === 0 && monitor.last_error_message && (
+          {!getMonitorStatus(monitor) && monitor.last_error_message && (
             <div className="flex items-center gap-2 px-3 py-1 bg-rose-500/5 text-rose-500 text-[9px] font-bold uppercase rounded-lg border border-rose-500/10 italic">
               <AlertCircle className="size-3" /> Reason: {monitor.last_error_message}
             </div>
@@ -364,7 +376,7 @@ export default function MonitorDetails() {
                   </div>
                </div>
                 <div className="h-64 w-full relative min-h-[200px]">
-                  <LatencyChart data={recentPings} isUp={monitor.current_is_up === 1} />
+                  <LatencyChart data={recentPings} isUp={getMonitorStatus(monitor)} />
                 </div>
             </div>
 

@@ -197,25 +197,31 @@ export default function Auth() {
     setGoogleLoading(true);
 
     try {
+      // Dynamic redirect URL based on current environment
+      const origin = window.location.origin;
+      const redirectURL = `${origin}/auth`;
+      
+      console.log('[AUTH] Initiating Google Sign-In with redirect URL:', redirectURL);
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin + '/auth' },
+        options: { 
+          redirectTo: redirectURL,
+          // Use queryParams to force fresh consent if needed for debugging
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        },
       });
 
       if (error) throw error;
-      if (!data.url) throw new Error('Missing OAuth redirect URL');
-      window.location.href = data.url;
-      return;
+      if (!data.url) throw new Error('Could not generate authentication URL');
       
-      // Try to sync with backend
-      let syncSucceeded = false;
-      try {
-        // no-op; OAuth completes after redirect
-      } catch (syncErr) {
-        console.warn('Backend sync request failed:', syncErr);
-      }
+      // Navigate to the provider's login page
+      window.location.href = data.url;
     } catch (err: any) {
-      console.error('Google Auth Error:', err);
+      console.error('[AUTH] Google Sign-In error:', err);
       let msg = err.message || 'Verification cancelled';
       setError(msg);
     } finally {

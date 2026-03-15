@@ -55,7 +55,7 @@ export const DnsCard = memo(({ provider, result, onClick, onTest, isTesting, ind
       className="relative h-full cursor-pointer group"
       onClick={onClick}
     >
-      <div className="h-full bg-panel hover:bg-panel/80 transition-all duration-300 border border-line group-hover:border-primary/30 rounded-2xl p-6 flex flex-col shadow-sm hover:shadow-xl hover:shadow-primary/5">
+      <div className="h-full bg-panel hover:bg-panel/95 transition-all duration-300 border border-line group-hover:border-primary/30 rounded-2xl p-6 flex flex-col shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-xl hover:shadow-primary/5">
 
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-3">
