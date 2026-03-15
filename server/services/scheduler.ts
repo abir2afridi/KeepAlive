@@ -1,6 +1,7 @@
 import { pingQueue } from '../queues/ping-queue.js';
 import { WorkerController } from '../controllers/worker-controller.js';
 import { MonitorRegistry } from './supabase-monitor-registry.ts';
+import { redisCache } from '../redis-cache.js';
 import type { Monitor } from '../types/monitor.js';
 
 export class SchedulerService {
@@ -26,12 +27,21 @@ export class SchedulerService {
           const intervalMs = (monitor.interval_seconds || 60) * 1000;
 
           if (now - lastPing >= intervalMs) {
+            // Distributed lock to prevent double-queuing from multiple instances
+            const lockKey = `lock:ping:${monitor.id}`;
+            const acquired = await redisCache.acquireLock(lockKey, Math.min(30, monitor.interval_seconds || 30));
+            
+            if (!acquired) {
+              // Someone elsewhere is already processing this monitor or just queued it
+              continue;
+            }
+
             const m = monitor as unknown as Monitor;
             if (pingQueue) {
               // Add to BullMQ
               await pingQueue.add(`ping:${monitor.id}`, 
                 { monitor: m }, 
-                { jobId: `ping:${monitor.id}:${Math.floor(now/intervalMs)}` }
+                { jobId: `ping:${monitor.id}:${Math.floor(now / (Math.max(1, monitor.interval_seconds || 60) * 1000))}` }
               ).catch(err => {
                 console.warn('[SCHEDULER] Failed to add to queue, processing directly:', err.message);
                 WorkerController.processPing(m);

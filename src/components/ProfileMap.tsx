@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '../contexts/ThemeContext';
 import { Crosshair, Loader2 } from 'lucide-react';
 
 // Custom marker icon — pulsing blue dot
@@ -65,7 +65,7 @@ interface ProfileMapProps {
 
 export default function ProfileMap({ lat, lng, city, country }: ProfileMapProps) {
     const { theme } = useTheme();
-    const isDark = theme === 'dark' || (theme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const isDark = theme === 'dark';
 
     const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
     const [gpsDetecting, setGpsDetecting] = useState(false);

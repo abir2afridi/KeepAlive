@@ -12,6 +12,7 @@ interface Monitor {
   id: string;
   name: string;
   url: string;
+  status: string;
   type: string;
   current_is_up: number | null;
   last_response_time: number | null;
@@ -309,8 +310,10 @@ export default function Dashboard() {
                   >
                     <div className="flex items-center gap-6">
                        <div className={cn(
-                         "size-2 rounded-full ring-4 shadow-sm",
-                         monitor.current_is_up === 1 ? "bg-emerald-500 ring-emerald-500/10" : "bg-rose-500 ring-rose-500/10"
+                         "size-2 rounded-full ring-4 shadow-sm transition-colors duration-500",
+                         monitor.status === 'up' && monitor.current_is_up === 1 ? "bg-emerald-500 ring-emerald-500/10" : 
+                         monitor.status === 'up' && monitor.current_is_up === 0 ? "bg-amber-500 ring-amber-500/10 animate-pulse" :
+                         "bg-rose-500 ring-rose-500/10"
                        )} />
                        <div className="space-y-1">
                           <h4 className="text-lg font-bold text-ink group-hover:text-primary transition-colors italic uppercase tracking-tight">{monitor.name}</h4>

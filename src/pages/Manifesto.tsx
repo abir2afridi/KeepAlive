@@ -75,7 +75,114 @@ export default function Manifesto() {
           ))}
         </div>
 
-        {/* 03. Core Objective */}
+        {/* 03. Operational Handbook */}
+        <div className="space-y-12">
+          <div className="flex items-center gap-4">
+            <div className="h-px flex-1 bg-line/40" />
+            <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-ink/40 italic">Operational Handbook</h3>
+            <div className="h-px flex-1 bg-line/40" />
+          </div>
+
+          <div className="grid grid-cols-1 gap-12">
+            {/* Monitor Types Section */}
+            <div className="space-y-8">
+              <div className="space-y-2">
+                <h4 className="text-xl font-bold text-ink italic tracking-tight">01. Monitor Architectures</h4>
+                <p className="text-xs text-ink/60 italic leading-relaxed">Our telemetry engine supports four primary observation modes designed for high-availability infrastructures.</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="p-8 bg-panel/40 border border-line/40 rounded-3xl space-y-4">
+                  <div className="text-primary font-black text-xs tracking-widest uppercase italic">HTTP / HTTPS</div>
+                  <p className="text-[11px] text-ink/70 leading-relaxed font-medium italic">
+                    Monitors standard web endpoints. It validates SSL handshakes, tracks Time-to-First-Byte (TTFB), and ensures your web server is returning 2xx or 3xx status codes.
+                  </p>
+                </div>
+                <div className="p-8 bg-panel/40 border border-line/40 rounded-3xl space-y-4">
+                  <div className="text-blue-400 font-black text-xs tracking-widest uppercase italic">TCP (Port) Monitoring</div>
+                  <p className="text-[11px] text-ink/70 leading-relaxed font-medium italic">
+                    Low-level socket connectivity. Used for checking databases (Postgres, Redis), mail servers (SMTP), or custom APIs that don't use standard HTTP protocols.
+                  </p>
+                </div>
+                <div className="p-8 bg-panel/40 border border-line/40 rounded-3xl space-y-4">
+                  <div className="text-emerald-400 font-black text-xs tracking-widest uppercase italic">SSL Certificate Watch</div>
+                  <p className="text-[11px] text-ink/70 leading-relaxed font-medium italic">
+                    Observes your encryption pipeline. It calculates the remaining lifecycle of your SSL certificates and triggers warnings weeks before an expiration occurs.
+                  </p>
+                </div>
+                <div className="p-8 bg-panel/40 border border-line/40 rounded-3xl space-y-4">
+                  <div className="text-amber-400 font-black text-xs tracking-widest uppercase italic">Supabase Sync</div>
+                  <p className="text-[11px] text-ink/70 leading-relaxed font-medium italic">
+                    Specialized integration for Supabase. It verifies the health of your edge functions and database pooling, ensuring your backend is proactive and responsive.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* The 3-Strike Rule Section */}
+            <div className="bg-slate-900 border border-white/10 p-12 rounded-[3.5rem] relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-8">
+                <Shield className="size-24 text-white/5 rotate-12 group-hover:rotate-0 transition-transform duration-1000" />
+              </div>
+              <div className="relative z-10 space-y-6">
+                <div className="space-y-2">
+                  <h4 className="text-2xl font-bold text-white italic tracking-tighter uppercase">The 3-Strike Protocol</h4>
+                  <p className="text-xs text-white/50 italic font-medium leading-relaxed max-w-lg">
+                    To eliminate false positives caused by transient internet noise, our system utilizes a confirmed-incident algorithm.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
+                  <div className="space-y-2">
+                    <div className="text-[10px] font-black text-primary uppercase italic">01. Observation</div>
+                    <p className="text-[11px] text-white/40 italic">A ping fails. The telemetry system records the fault but keeps the monitor in the <span className="text-amber-400">AMBER</span> (Degraded) state.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-[10px] font-black text-primary uppercase italic">02. Verification</div>
+                    <p className="text-[11px] text-white/40 italic">The scheduler queues an immediate re-check. A second failure triggers high-priority observation.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-[10px] font-black text-primary uppercase italic">03. Confirmation</div>
+                    <p className="text-[11px] text-white/40 italic">After the third consecutive failure, the system confirms a <span className="text-rose-500">DOWN</span> incident and broadcasts alerts across all channels.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Dashboard Terminology */}
+            <div className="space-y-8">
+              <div className="space-y-2">
+                <h4 className="text-xl font-bold text-ink italic tracking-tight">02. Intelligence Indicators</h4>
+                <p className="text-xs text-ink/60 italic leading-relaxed">Understanding the metrics on your command center dashboard.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="size-2 rounded-full bg-primary" />
+                    <span className="text-[10px] font-black uppercase text-ink/80 italic">Velocity (ms)</span>
+                  </div>
+                  <p className="text-[11px] text-ink/60 italic">Latency measured from our nearest geographical node. Lower velocity indicates better user proximity and server responsiveness.</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="size-2 rounded-full bg-emerald-500" />
+                    <span className="text-[10px] font-black uppercase text-ink/80 italic">Stability Index</span>
+                  </div>
+                  <p className="text-[11px] text-ink/60 italic">A roll-up metric of uptime over the last 24 hours. Anything above 99.9% is considered nominal.</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="size-2 rounded-full bg-blue-500" />
+                    <span className="text-[10px] font-black uppercase text-ink/80 italic">Telemetry stream</span>
+                  </div>
+                  <p className="text-[11px] text-ink/60 italic">The live history of pings. It provides deep visibility into intermittent packet loss or performance spikes.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 04. Core Objective */}
         <div className="p-16 rounded-[4rem] bg-gradient-to-br from-primary/5 via-transparent to-transparent border border-line relative overflow-hidden">
           <div className="relative z-10 space-y-8">
             <div className="space-y-2">
@@ -87,7 +194,7 @@ export default function Manifesto() {
             <div className="flex items-center gap-6">
               <div className="space-y-1">
                 <p className="text-[8px] font-bold text-ink/40 uppercase tracking-widest">Version</p>
-                <p className="text-[10px] font-black text-ink/80 uppercase">4.0.1 Stable Alpha</p>
+                <p className="text-[10px] font-black text-ink/80 uppercase">4.0.2 Stable Alpha</p>
               </div>
               <div className="w-px h-6 bg-line" />
               <div className="space-y-1">
@@ -101,7 +208,7 @@ export default function Manifesto() {
           </div>
         </div>
 
-        {/* 04. Footer Note */}
+        {/* 05. Footer Note */}
         <div className="text-center pt-8">
           <p className="text-[10px] font-bold text-ink/30 uppercase tracking-[0.5em]">
             Designed for the decentralized era — EST. 2026

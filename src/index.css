@@ -53,11 +53,11 @@
 
 :root {
   /* LIGHT Theme */
-  --primary: #8b5cf6; 
-  --bg-base: #35216c;
-  --bg-panel: rgba(255, 255, 255, 0.05);
-  --border-subtle: rgba(255, 255, 255, 0.1);
-  --text-main: #ffffff;
+  --primary: #5551FF; 
+  --bg-base: #f1f5f9;
+  --bg-panel: #ffffff;
+  --border-subtle: #e2e8f0;
+  --text-main: #1e293b;
 }
 
 .dark {

@@ -60,9 +60,24 @@ export class WorkerController {
       interval_seconds: (monitor as any).interval_seconds || (monitor as any).interval || 60
     });
 
-    // 2b. Best-effort write ping row to Supabase (don't block pipeline)
+    // 2b. Persist status and metadata to Supabase (don't block pipeline)
     try {
       const isUpBool = Boolean(statusUpdate.last_is_up);
+      await withBackoff(
+        () => supabaseAdmin
+          .from('monitors')
+          .update({
+            last_is_up: isUpBool,
+            last_pinged_at: statusUpdate.last_pinged_at,
+            last_response_time: statusUpdate.last_response_time,
+            last_status_code: statusUpdate.last_status_code,
+            last_error_message: statusUpdate.last_error_message
+          })
+          .eq('id', monitor.id) as any,
+        { label: 'update monitor metadata' }
+      );
+      
+      // Also log to ping_logs
       await withBackoff(
         () => supabaseAdmin
           .from('ping_logs')
@@ -76,7 +91,7 @@ export class WorkerController {
         { label: 'insert ping_logs' }
       );
     } catch (e) {
-      console.warn('[WORKER] Supabase ping insert failed (continuing):', e);
+      console.warn('[WORKER] Supabase update failed (continuing):', e);
     }
 
     // 3. Failure Detection (3-Strike Rule)
@@ -141,7 +156,7 @@ export class WorkerController {
       );
       if ((monitor as any).user_id) await redisCache.clearUserMonitors((monitor as any).user_id);
     } catch (e) {
-      console.error('[WORKER] Failed to update monitor status (down):', e);
+      console.error('[WORKER] Failed to notify monitor status (down):', e);
     }
   }
 

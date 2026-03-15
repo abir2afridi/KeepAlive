@@ -254,10 +254,24 @@ export const redisCache = {
     return memKeys(prefix + '*').map(k => k.replace(prefix, ''));
   },
 
-  // ─── Hourly Stats ─────────────────────────────────────────────────────────
-  async getHourlyStatsKey(monitorId: string, hourTs: string): Promise<string> {
-    return `hourly:${monitorId}:${hourTs}`;
+  // ─── Distributed Locking ──────────────────────────────────────────────────
+  async acquireLock(key: string, ttlSeconds: number = 30): Promise<boolean> {
+    if (redisAvailable && redis) {
+      try {
+        const result = await redis.set(key, '1', 'EX', ttlSeconds, 'NX');
+        return result === 'OK';
+      } catch { /* fallback to memory */ }
+    }
+    // In-memory simplistic lock
+    const existing = memGet(key);
+    if (existing) return false;
+    memSet(key, '1', ttlSeconds);
+    return true;
   },
+
+  async releaseLock(key: string): Promise<void> {
+    await this.del(key);
+  }
 };
 
 export { redis, redisAvailable };
