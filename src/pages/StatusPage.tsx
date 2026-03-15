@@ -87,6 +87,13 @@ export default function StatusPage() {
   const [statusName, setStatusName] = useState('Service Status');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Helper function to safely get numeric values
+  const getSafeValue = (value: any): number | null => {
+    if (value === undefined || value === null) return null;
+    const parsed = typeof value === 'number' ? value : parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
     else setIsRefreshing(true);
@@ -270,7 +277,12 @@ export default function StatusPage() {
                    <div className="text-left md:text-right">
                       <span className="block text-[9px] sm:text-[10px] font-bold text-ink/70 uppercase tracking-widest">Aggregate Score</span>
                       <span className="text-4xl sm:text-5xl font-black text-ink tracking-widest tabular-nums">
-                        {(monitors.reduce((acc, m) => acc + (m.uptime_percent || 0), 0) / (monitors.length || 1)).toFixed(2)}
+                        {(() => {
+                          const validMonitors = monitors.filter(m => m.uptime_percent !== null && m.uptime_percent !== undefined);
+                          if (validMonitors.length === 0) return '---';
+                          const avg = validMonitors.reduce((acc, m) => acc + (m.uptime_percent || 0), 0) / validMonitors.length;
+                          return avg.toFixed(2);
+                        })()}
                       </span>
                    </div>
                    <div className="px-5 py-2 bg-base dark:bg-panel/5 rounded-xl text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-ink/70 italic border border-line dark:border-white/5">
@@ -323,7 +335,7 @@ export default function StatusPage() {
                     <div className="text-right shrink-0 flex items-center gap-4">
                        <div className="w-12 h-12 sm:w-16 sm:h-16">
                           <AnalogMeter 
-                            value={monitor.avg_response_time || 0} 
+                            value={getSafeValue(monitor.avg_response_time)} 
                             max={1000} 
                             label="" 
                             unit="" 
@@ -364,7 +376,11 @@ export default function StatusPage() {
                     <div className="flex gap-8">
                       <div className="space-y-1">
                         <span className="text-[9px] font-bold text-ink/70 uppercase tracking-widest block italic">Uptime</span>
-                        <span className="text-xs font-black text-ink italic">{(monitor.uptime_percent || 0).toFixed(2)}%</span>
+                        <span className="text-xs font-black text-ink italic">
+                          {monitor.uptime_percent !== null && monitor.uptime_percent !== undefined 
+                            ? `${monitor.uptime_percent.toFixed(2)}%` 
+                            : '---'}
+                        </span>
                       </div>
                       <div className="space-y-1">
                         <span className="text-[9px] font-bold text-ink/70 uppercase tracking-widest block italic">Status</span>

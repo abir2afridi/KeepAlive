@@ -211,8 +211,6 @@ const LatencyChart = ({ data, isUp = true }: { data: Ping[], isUp?: boolean }) =
     </ChartContainer>
   );
 };
-  );
-};
 
 export default function MonitorDetails() {
   const { id } = useParams<{ id: string }>();
@@ -328,10 +326,10 @@ export default function MonitorDetails() {
             
             // Recalculate basic stats for immediate UI feedback
             const upPings = updatedPings.filter(p => p.is_up === 1);
-            const newUptime = updatedPings.length > 0 ? (upPings.length / updatedPings.length) * 100 : 0;
+            const newUptime = updatedPings.length > 0 ? (upPings.length / updatedPings.length) * 100 : null;
             const newAvgLatency = upPings.length > 0 
               ? upPings.reduce((acc, p) => acc + p.response_time, 0) / upPings.length 
-              : 0;
+              : null;
 
             return {
               ...current,

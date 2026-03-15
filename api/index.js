@@ -221,14 +221,44 @@ module.exports = async function handler(req, res) {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      console.log(`Monitors found for user ${user.id}:`, monitors?.length || 0);
-
       if (monitorError) {
         console.error('Error fetching monitors:', monitorError);
         return res.status(500).json({ error: 'Failed to fetch monitors', details: monitorError.message });
       }
 
-      return res.status(200).json({ monitors: monitors || [] });
+      // If no monitors, return empty list
+      if (!monitors || monitors.length === 0) {
+        return res.status(200).json({ monitors: [] });
+      }
+
+      // Get recent pings for all these monitors to calculate stats
+      const monitorIds = monitors.map(m => m.id);
+      const { data: allPings } = await supabase
+        .from('pings')
+        .select('*')
+        .in('monitor_id', monitorIds)
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order('created_at', { ascending: false });
+
+      const monitorsWithStats = monitors.map(monitor => {
+        const monitorPings = allPings?.filter(p => p.monitor_id === monitor.id) || [];
+        const totalPings = monitorPings.length;
+        const successfulPings = monitorPings.filter(p => p.is_up === true).length;
+        const uptimePercent = totalPings > 0 ? (successfulPings / totalPings * 100) : null;
+        
+        return {
+          ...monitor,
+          uptime_percent: uptimePercent,
+          current_is_up: monitorPings[0]?.is_up === true ? 1 : (monitorPings[0] ? 0 : null),
+          recent_pings: monitorPings.slice(0, 20).map(ping => ({
+            response_time: ping.response_time || 0,
+            is_up: ping.is_up === true ? 1 : 0,
+            created_at: ping.created_at
+          }))
+        };
+      });
+
+      return res.status(200).json({ monitors: monitorsWithStats });
     }
 
     // Route: POST /api/monitors
