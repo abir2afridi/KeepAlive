@@ -165,10 +165,10 @@ export default function CreateMonitor() {
   );
 
   return (
-    <div className="max-w-5xl mx-auto space-y-12 transition-all duration-700">
+    <div className="max-w-5xl mx-auto space-y-8 sm:space-y-12 transition-all duration-700">
       
       {/* Sleek Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-10 border-b border-line">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 sm:gap-8 pb-8 sm:pb-10 border-b border-line">
         <div className="space-y-4">
           <nav className="flex items-center gap-3 text-[9px] font-bold text-ink/60 uppercase tracking-widest">
             <Link to="/app/monitors" className="hover:text-primary transition-colors flex items-center gap-1.5 italic">
@@ -208,7 +208,7 @@ export default function CreateMonitor() {
          <div className="lg:col-span-2 space-y-10">
             
             {/* Core Settings */}
-            <div className="bg-panel border border-line p-8 rounded-3xl space-y-8 shadow-sm">
+            <div className="bg-panel border border-line p-6 sm:p-8 rounded-3xl space-y-6 sm:space-y-8 shadow-sm">
                <div className="flex items-center gap-4 border-b border-line/20 pb-6">
                   <div className="size-10 bg-primary/5 rounded-xl flex items-center justify-center text-primary border border-primary/10">
                      <Globe className="size-5" />
@@ -311,7 +311,7 @@ export default function CreateMonitor() {
             </div>
 
             {/* Advanced Settings */}
-            <div className="bg-panel border border-line p-8 rounded-3xl space-y-8 shadow-sm">
+            <div className="bg-panel border border-line p-6 sm:p-8 rounded-3xl space-y-6 sm:space-y-8 shadow-sm">
                <div className="flex items-center gap-4 border-b border-line/20 pb-6">
                   <div className="size-10 bg-primary/5 rounded-xl flex items-center justify-center text-primary border border-primary/10">
                      <Settings2 className="size-5" />
@@ -412,7 +412,7 @@ export default function CreateMonitor() {
          {/* Sidebar Controls */}
          <div className="space-y-8">
             
-            <div className="bg-panel border border-line p-8 rounded-3xl space-y-8 shadow-sm">
+            <div className="bg-panel border border-line p-6 sm:p-8 rounded-3xl space-y-6 sm:space-y-8 shadow-sm">
                <div className="flex items-center gap-4 border-b border-line/20 pb-6">
                   <div className="size-10 bg-amber-500/5 rounded-xl flex items-center justify-center text-amber-500 border border-amber-500/10">
                      <Megaphone className="size-5" />

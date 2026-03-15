@@ -206,7 +206,7 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-12 transition-all duration-700">
+    <div className="max-w-6xl mx-auto space-y-8 sm:space-y-12 transition-all duration-700">
       
       <div className="flex items-center justify-between pb-4 border-b border-line/40">
         <div className="space-y-1">
@@ -243,7 +243,7 @@ export default function Dashboard() {
       )}
 
       {/* Stats Grid - Minimalist & Premium */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-panel border border-line/40 p-8 rounded-3xl flex flex-col gap-6 shadow-sm hover:translate-y-[-2px] transition-all">
            <div className="flex items-center justify-between">
               <div className="size-10 rounded-xl flex items-center justify-center border border-current/10 shadow-sm bg-primary/5 text-primary">

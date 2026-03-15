@@ -90,7 +90,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-12">
+    <div className="max-w-6xl mx-auto space-y-8 sm:space-y-12">
       
       <div className="flex items-center justify-between pb-4 border-b border-line/40">
         <h2 className="text-xs font-bold text-ink/60 uppercase tracking-[0.3em] italic">System Preferences</h2>
@@ -143,7 +143,7 @@ export default function Settings() {
         </aside>
 
         {/* Content Area */}
-        <main className="lg:col-span-3 space-y-16">
+        <main className="lg:col-span-3 space-y-12 sm:space-y-16">
            
            {/* Profile Section */}
            <section className="space-y-8">

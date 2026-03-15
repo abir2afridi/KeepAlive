@@ -28,6 +28,7 @@ interface Monitor {
   avg_response_time: number;
   last_error_message?: string;
   last_checked: string | null;
+  expected_status?: number | number[];
   recent_pings: { response_time: number; is_up: number; error_message?: string; created_at: string }[];
   recent_incidents: { response_time: number; is_up: number; error_message?: string; created_at: string }[];
 }
@@ -178,6 +179,29 @@ export default function StatusPage() {
 
   const allOperational = monitors.length > 0 && monitors.every(m => getMonitorStatus(m));
 
+  if (!monitors || monitors.length === 0) {
+    return (
+      <div className="min-h-screen bg-base font-sans text-ink">
+        <nav className="sticky top-0 z-[100] bg-panel/80 backdrop-blur-xl border-b border-line">
+          <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+               <div className="size-9 bg-primary/10 rounded-xl flex items-center justify-center">
+                 <CloudCog className="size-5 text-primary" />
+               </div>
+               <span className="text-lg font-bold tracking-tight text-ink  leading-tight">{statusName}</span>
+            </div>
+            <ThemeToggle />
+          </div>
+        </nav>
+        <main className="max-w-6xl mx-auto px-6 py-24 text-center space-y-4">
+           <Activity className="size-12 text-ink/20 mx-auto" />
+           <h2 className="text-2xl font-bold uppercase tracking-widest text-ink/70">Awaiting Telemetry</h2>
+           <p className="text-ink/50 text-sm max-w-sm mx-auto">This portal is active, but no infrastructure nodes are currently broadcasting status.</p>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-base font-sans text-ink transition-colors duration-500">
       {/* Refined Navigation */}
@@ -205,12 +229,12 @@ export default function StatusPage() {
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-6 py-12 space-y-16">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-12 sm:space-y-16">
         
         {/* Status Banner */}
         <section>
            <div className={cn(
-             "p-8 md:p-12 rounded-[40px] border transition-all duration-700 relative overflow-hidden group shadow-sm",
+             "p-6 sm:p-8 md:p-12 rounded-[32px] sm:rounded-[40px] border transition-all duration-700 relative overflow-hidden group shadow-sm",
              allOperational 
                ? "bg-panel dark:bg-emerald-500/5 border-emerald-500/10" 
                : "bg-panel dark:bg-rose-500/5 border-rose-500/10"
@@ -220,10 +244,10 @@ export default function StatusPage() {
                allOperational ? "bg-emerald-500" : "bg-rose-500"
              )} />
 
-             <div className="flex flex-col md:flex-row md:items-center justify-between gap-10 relative z-10">
-                <div className="space-y-6">
+             <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 md:gap-10 relative z-10">
+                <div className="space-y-4 sm:space-y-6">
                    <div className={cn(
-                     "inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest border shadow-sm",
+                     "inline-flex items-center gap-2.5 px-3 py-1.5 rounded-full text-[8px] sm:text-[9px] font-bold uppercase tracking-widest border shadow-sm",
                      allOperational ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-500 border-emerald-500/20" : "bg-rose-500/5 text-rose-600 dark:text-rose-500 border-rose-500/20"
                    )}>
                      <span className="relative flex size-2">
@@ -232,24 +256,24 @@ export default function StatusPage() {
                      </span>
                      {allOperational ? 'Global Systems Operational' : 'Cluster Incident Active'}
                    </div>
-                   <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-ink  leading-tight">
+                   <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-ink  leading-tight">
                      {allOperational ? 'All Services Normal.' : 'Performance Degraded.'}
                    </h2>
-                   <p className="text-ink/60 dark:text-ink/70 max-w-xl text-sm font-medium leading-relaxed">
+                   <p className="text-ink/60 dark:text-ink/70 max-w-xl text-xs sm:text-sm font-medium leading-relaxed italic">
                      {allOperational 
                        ? 'Our global monitoring mesh confirms all nodes are performing optimally. Uptime integrity is at nominal levels.' 
                        : 'Our regional observers have detected latency spikes. Engineering teams are investigating the root cause.'}
                    </p>
                 </div>
                 
-                <div className="flex flex-col md:items-end justify-center gap-4">
-                   <div className="text-right">
-                      <span className="block text-[10px] font-bold text-ink/70 uppercase tracking-widest">Aggregate Score</span>
-                      <span className="text-5xl font-black text-ink tracking-widest tabular-nums">
+                <div className="flex flex-col items-start md:items-end justify-center gap-3 sm:gap-4">
+                   <div className="text-left md:text-right">
+                      <span className="block text-[9px] sm:text-[10px] font-bold text-ink/70 uppercase tracking-widest">Aggregate Score</span>
+                      <span className="text-4xl sm:text-5xl font-black text-ink tracking-widest tabular-nums">
                         {(monitors.reduce((acc, m) => acc + (m.uptime_percent || 0), 0) / (monitors.length || 1)).toFixed(2)}
                       </span>
                    </div>
-                   <div className="px-5 py-2 bg-base dark:bg-panel/5 rounded-xl text-[9px] font-bold uppercase tracking-widest text-ink/70 italic border border-line dark:border-white/5">
+                   <div className="px-5 py-2 bg-base dark:bg-panel/5 rounded-xl text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-ink/70 italic border border-line dark:border-white/5">
                      30-Day Reliability Index
                    </div>
                 </div>
@@ -269,14 +293,14 @@ export default function StatusPage() {
              </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
             {monitors.map((monitor) => {
               const isMonitorUp = getMonitorStatus(monitor);
               return (
               <Link 
                 key={monitor.id}
                 to={`/status/${slug}/monitors/${monitor.id}`}
-                className="bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/5 rounded-[32px] p-8 transition-all duration-500 hover:shadow-lg shadow-sm space-y-8 group hover:-translate-y-1 block"
+                className="bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/5 rounded-[32px] p-6 sm:p-8 transition-all duration-500 hover:shadow-lg shadow-sm space-y-6 sm:space-y-8 group hover:-translate-y-1 block"
               >
                  <div className="flex items-start justify-between">
                     <div className="space-y-2 flex-1 min-w-0">
@@ -297,7 +321,7 @@ export default function StatusPage() {
                        )}
                     </div>
                     <div className="text-right shrink-0 flex items-center gap-4">
-                       <div className="w-16 h-16">
+                       <div className="w-12 h-12 sm:w-16 sm:h-16">
                           <AnalogMeter 
                             value={monitor.avg_response_time || 0} 
                             max={1000} 
@@ -316,7 +340,7 @@ export default function StatusPage() {
 
                  <div className="space-y-4">
                     <div className="flex items-center gap-1 h-8">
-                       {monitor.recent_pings.slice(-30).map((p, i) => (
+                       {monitor.recent_pings?.slice(-30).map((p, i) => (
                          <div 
                            key={i} 
                            className={cn(
@@ -326,7 +350,7 @@ export default function StatusPage() {
                            title={`${new Date(p.created_at).toLocaleString()} - ${p.is_up === 1 ? 'UP' : 'DOWN'}`}
                          />
                        ))}
-                       {monitor.recent_pings.length < 30 && Array.from({ length: 30 - monitor.recent_pings.length }).map((_, i) => (
+                       {(!monitor.recent_pings || monitor.recent_pings.length < 30) && Array.from({ length: 30 - (monitor.recent_pings?.length || 0) }).map((_, i) => (
                          <div key={`empty-${i}`} className="flex-1 h-full rounded-sm bg-line/10 dark:bg-white/5" />
                        ))}
                     </div>
@@ -374,9 +398,9 @@ export default function StatusPage() {
            </div>
 
            <div className="space-y-6">
-              {monitors.some(m => m.recent_incidents && m.recent_incidents.length > 0) ? (
-                monitors.flatMap(m => m.recent_incidents.map(inc => ({ ...inc, monitorName: m.name })))
-                  .sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+              {monitors.some(m => Array.isArray(m.recent_incidents) && m.recent_incidents.length > 0) ? (
+                monitors.flatMap(m => (Array.isArray(m.recent_incidents) ? m.recent_incidents : []).map(inc => ({ ...inc, monitorName: m.name })))
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                   .slice(0, 5)
                   .map((inc, i) => (
                     <div key={i} className="flex gap-8 group">

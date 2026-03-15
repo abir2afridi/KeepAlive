@@ -169,9 +169,9 @@ export default function Alerts() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-700">
+    <div className="max-w-6xl mx-auto space-y-8 sm:space-y-12 animate-in fade-in duration-700">
       
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-10 border-b border-line">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-8 sm:pb-10 border-b border-line">
         <div className="space-y-2">
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-ink uppercase italic">
               Channel <span className="text-primary">Registry</span>
@@ -192,19 +192,19 @@ export default function Alerts() {
       </header>
 
       {/* Stats Matrix */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
         {[
           { icon: Lock, label: 'ENCRYPTION', val: 'End-to-End', color: 'text-primary' },
           { icon: Zap, label: 'CHANNELS', val: String((channels || []).length), color: 'text-emerald-500' },
           { icon: Globe, label: 'TYPES', val: String(Object.keys(grouped || {}).length || 0), color: 'text-blue-500' }
         ].map((m, i) => (
-          <div key={i} className="bg-panel border border-line p-6 rounded-3xl flex items-center gap-5 shadow-sm group hover:translate-y-[-2px] transition-all">
+          <div key={i} className="bg-panel border border-line p-5 sm:p-6 rounded-3xl flex items-center gap-4 sm:gap-5 shadow-sm group hover:translate-y-[-2px] transition-all">
             <div className="size-10 bg-base rounded-xl flex items-center justify-center text-ink/60 group-hover:text-primary border border-line/50 transition-all shadow-sm">
               <m.icon className="size-4.5" />
             </div>
             <div className="space-y-0.5">
               <span className="block text-[8px] font-bold text-ink/60 uppercase tracking-widest italic">{m.label}</span>
-              <span className={cn("block text-lg font-black tracking-tighter italic", m.color)}>{m.val}</span>
+              <span className={cn("block text-base sm:text-lg font-black tracking-tighter italic", m.color)}>{m.val}</span>
             </div>
           </div>
         ))}
@@ -233,7 +233,7 @@ export default function Alerts() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <div className="space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-widest text-ink/50">Email</div>
             <div className="flex gap-2">
@@ -279,7 +279,7 @@ export default function Alerts() {
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
         <AlertChannel
           icon={Mail}
           title="Email"
@@ -353,47 +353,47 @@ export default function Alerts() {
       ) : null}
 
       {/* Info Block */}
-      <div className="bg-slate-900 dark:bg-primary p-10 md:p-14 rounded-[40px] relative overflow-hidden group shadow-2xl text-white">
+      <div className="bg-slate-900 dark:bg-primary p-8 sm:p-10 md:p-14 rounded-[32px] sm:rounded-[40px] relative overflow-hidden group shadow-2xl text-white">
          <div className="absolute top-0 right-0 size-64 bg-white/10 dark:bg-primary/20 blur-3xl -mr-32 -mt-32 group-hover:scale-150 transition-transform duration-1000" />
-         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-10 md:gap-14 items-center">
-            <div className="space-y-6">
+         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-10 md:gap-14 items-center">
+            <div className="space-y-5 sm:space-y-6">
                <div className="flex items-center gap-4">
-                  <div className="size-11 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20">
+                  <div className="size-10 sm:size-11 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20">
                      <Bell className="size-5 text-white" />
                   </div>
                   <div>
-                     <h4 className="text-2xl font-black text-white tracking-tight italic uppercase">Signal <span className="text-white/80">Protection</span></h4>
-                     <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest italic">Smart Filtering Active</span>
+                     <h4 className="text-xl sm:text-2xl font-black text-white tracking-tight italic uppercase">Signal <span className="text-white/80">Protection</span></h4>
+                     <span className="text-[8px] sm:text-[9px] font-bold text-white/40 uppercase tracking-widest italic">Smart Filtering Active</span>
                   </div>
                </div>
-               <p className="text-xs text-white/70 font-medium leading-relaxed pr-6 italic">
+               <p className="text-[11px] sm:text-xs text-white/70 font-medium leading-relaxed sm:pr-6 italic">
                   Intelligent noise reduction algorithms prevent alert fatigue by grouping related node failures into unified incident reports. Zero-false-positive detection enabled.
                </p>
-               <div className="flex flex-wrap gap-4">
-                  <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-xl border border-white/5">
+               <div className="flex flex-wrap gap-3 sm:gap-4">
+                  <div className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-white/10 rounded-xl border border-white/5">
                      <CheckCircle2 className="size-3 text-emerald-400" />
-                     <span className="text-[8px] font-bold text-white uppercase tracking-widest italic">Heuristics OK</span>
+                     <span className="text-[7px] sm:text-[8px] font-bold text-white uppercase tracking-widest italic">Heuristics OK</span>
                   </div>
-                  <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-xl border border-white/5">
+                  <div className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-white/10 rounded-xl border border-white/5">
                      <Lock className="size-3 text-white" />
-                     <span className="text-[8px] font-bold text-white uppercase tracking-widest italic">Secured Layer</span>
+                     <span className="text-[7px] sm:text-[8px] font-bold text-white uppercase tracking-widest italic">Secured Layer</span>
                   </div>
                </div>
             </div>
-            <div className="bg-white/5 border border-white/10 p-8 rounded-3xl space-y-6 backdrop-blur-md">
+            <div className="bg-white/5 border border-white/10 p-6 sm:p-8 rounded-2xl sm:rounded-3xl space-y-5 sm:space-y-6 backdrop-blur-md">
                <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                  <span className="text-[9px] font-bold text-white/50 uppercase tracking-widest italic">Relay Stats</span>
+                  <span className="text-[8px] sm:text-[9px] font-bold text-white/50 uppercase tracking-widest italic">Relay Stats</span>
                   <Activity className="size-3.5 text-primary animate-pulse" />
                </div>
-               <div className="space-y-4">
+               <div className="space-y-3 sm:space-y-4">
                   {[
                     { label: 'Relay Nodes', val: 'Triple Redundant' },
                     { label: 'Encryption', val: 'RSA 4096-bit' },
                     { label: 'Success Rate', val: '99.999%' }
                   ].map((stat, i) => (
                     <div key={i} className="flex items-center justify-between border-b border-white/5 dark:border-black/5 pb-3 last:border-0 last:pb-0">
-                       <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest italic">{stat.label}</span>
-                       <span className="text-[11px] font-black text-white italic tracking-tight">{stat.val}</span>
+                       <span className="text-[8px] sm:text-[9px] font-bold text-white/40 uppercase tracking-widest italic">{stat.label}</span>
+                       <span className="text-[10px] sm:text-[11px] font-black text-white italic tracking-tight">{stat.val}</span>
                     </div>
                   ))}
                </div>

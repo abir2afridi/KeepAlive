@@ -317,7 +317,7 @@ export default function ProfilePage() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {browserInfo && [
                                         { label: 'Browser', value: `${browserInfo.browser} ${browserInfo.browserVersion}`, icon: <Globe className="h-3 w-3" /> },
                                         { label: 'OS', value: browserInfo.os, icon: <Monitor className="h-3 w-3" /> },
@@ -438,55 +438,57 @@ export default function ProfilePage() {
                                 </div>
 
                                 {/* Latency Table */}
-                                <div className="space-y-2">
-                                    <div className="grid grid-cols-4 gap-4 px-4 py-2 text-[9px] font-black uppercase tracking-widest text-ink/50">
-                                        <span>Provider</span>
-                                        <span>IP Address</span>
-                                        <span>Latency</span>
-                                        <span>Status</span>
+                                <div className="overflow-x-auto custom-scrollbar -mx-2 px-2 pb-2">
+                                    <div className="min-w-[500px] space-y-2">
+                                        <div className="grid grid-cols-4 gap-4 px-4 py-2 text-[9px] font-black uppercase tracking-widest text-ink/50">
+                                            <span>Provider</span>
+                                            <span>IP Address</span>
+                                            <span>Latency</span>
+                                            <span>Status</span>
+                                        </div>
+                                        {dnsLatencies.map((item, i) => {
+                                            const isTop = top3.some(t => t.provider === item.provider);
+                                            const rank = top3.findIndex(t => t.provider === item.provider);
+                                            return (
+                                                <motion.div
+                                                    key={item.provider}
+                                                    initial={{ opacity: 0, x: -10 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    transition={{ delay: i * 0.05 }}
+                                                    className={`grid grid-cols-4 gap-4 px-4 py-3 rounded-xl border transition-all ${isTop && rank === 0
+                                                        ? 'bg-primary/5 border-primary/20'
+                                                        : 'bg-panel/10 border-line/20 hover:border-line/40'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        {isTop && rank === 0 && <Zap className="h-3 w-3 text-primary fill-primary" />}
+                                                        <span className="text-sm font-bold text-ink">{item.provider}</span>
+                                                    </div>
+                                                    <span className="text-sm font-mono text-ink">{item.ip}</span>
+                                                    <span className={`text-sm font-black font-mono ${item.status === 'pending' ? 'text-ink/40'
+                                                        : item.status === 'error' ? 'text-red-400'
+                                                            : item.latency < 50 ? 'text-emerald-400'
+                                                                : item.latency < 100 ? 'text-primary'
+                                                                    : item.latency < 200 ? 'text-amber-400'
+                                                                        : 'text-red-400'
+                                                        }`}>
+                                                        {item.status === 'pending' ? '...' : item.status === 'error' ? 'Failed' : `${item.latency.toFixed(1)} ms`}
+                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        {item.status === 'pending' && (
+                                                            <div className="w-4 h-4 border-2 border-muted-foreground/20 border-t-primary rounded-full animate-spin" />
+                                                        )}
+                                                        {item.status === 'success' && (
+                                                            <span className="text-[10px] font-black uppercase text-emerald-400">OK</span>
+                                                        )}
+                                                        {item.status === 'error' && (
+                                                            <span className="text-[10px] font-black uppercase text-red-400">ERR</span>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })}
                                     </div>
-                                    {dnsLatencies.map((item, i) => {
-                                        const isTop = top3.some(t => t.provider === item.provider);
-                                        const rank = top3.findIndex(t => t.provider === item.provider);
-                                        return (
-                                            <motion.div
-                                                key={item.provider}
-                                                initial={{ opacity: 0, x: -10 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: i * 0.05 }}
-                                                className={`grid grid-cols-4 gap-4 px-4 py-3 rounded-xl border transition-all ${isTop && rank === 0
-                                                    ? 'bg-primary/5 border-primary/20'
-                                                    : 'bg-panel/10 border-line/20 hover:border-line/40'
-                                                    }`}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    {isTop && rank === 0 && <Zap className="h-3 w-3 text-primary fill-primary" />}
-                                                    <span className="text-sm font-bold text-ink">{item.provider}</span>
-                                                </div>
-                                                <span className="text-sm font-mono text-ink">{item.ip}</span>
-                                                <span className={`text-sm font-black font-mono ${item.status === 'pending' ? 'text-ink/40'
-                                                    : item.status === 'error' ? 'text-red-400'
-                                                        : item.latency < 50 ? 'text-emerald-400'
-                                                            : item.latency < 100 ? 'text-primary'
-                                                                : item.latency < 200 ? 'text-amber-400'
-                                                                    : 'text-red-400'
-                                                    }`}>
-                                                    {item.status === 'pending' ? '...' : item.status === 'error' ? 'Failed' : `${item.latency.toFixed(1)} ms`}
-                                                </span>
-                                                <div>
-                                                    {item.status === 'pending' && (
-                                                        <div className="w-4 h-4 border-2 border-muted-foreground/20 border-t-primary rounded-full animate-spin" />
-                                                    )}
-                                                    {item.status === 'success' && (
-                                                        <span className="text-[10px] font-black uppercase text-emerald-400">OK</span>
-                                                    )}
-                                                    {item.status === 'error' && (
-                                                        <span className="text-[10px] font-black uppercase text-red-400">ERR</span>
-                                                    )}
-                                                </div>
-                                            </motion.div>
-                                        );
-                                    })}
                                 </div>
 
                                 {/* Recommendation */}
@@ -511,6 +513,7 @@ export default function ProfilePage() {
                                     </div>
                                 )}
                             </motion.div>
+
 
                             {/* Right column: Resolver + Diagnostics */}
                             <div className="space-y-6">

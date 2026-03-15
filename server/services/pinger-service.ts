@@ -46,8 +46,9 @@ export class PingerService {
 
   private static async pingHTTP(monitor: Monitor, start: number): Promise<PingExecutionResult> {
     const url = new URL(monitor.url);
-    if (url.hostname === 'localhost' || isPrivateIP(url.hostname)) {
-      throw new Error('SSRF: Private IP not allowed');
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (!isDev && (url.hostname === 'localhost' || isPrivateIP(url.hostname))) {
+      throw new Error('SSRF: Private IP not allowed in production');
     }
 
     let headers: Record<string, string> = {};
@@ -71,8 +72,16 @@ export class PingerService {
         signal: controller.signal
       });
 
-      const expected = monitor.expected_status || 200;
-      const isUp = res.status === expected ? 1 : 0;
+      let expected = monitor.expected_status || 200;
+      
+      // For Supabase monitors, prioritize 200 but allow 201/204 as successful
+      if (monitor.type === 'Supabase' && !monitor.expected_status) {
+        expected = [200, 201, 204];
+      }
+
+      const isUp = Array.isArray(expected) 
+        ? expected.includes(res.status) ? 1 : 0
+        : res.status === expected ? 1 : 0;
       
       return {
         isUp,

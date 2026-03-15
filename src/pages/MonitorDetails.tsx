@@ -248,10 +248,10 @@ export default function MonitorDetails() {
   const recentPings = monitor?.recent_pings || [];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-700">
+    <div className="max-w-6xl mx-auto space-y-8 sm:space-y-12 animate-in fade-in duration-700">
       
       {/* Refined Header */}
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 pb-10 border-b border-line dark:border-white/5">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 pb-8 sm:pb-10 border-b border-line dark:border-white/5">
         <div className="space-y-4 flex-1">
           <nav className="flex items-center gap-3 text-[9px] font-bold text-ink/70 uppercase tracking-widest">
             <Link to="/app/monitors" className="hover:text-primary transition-colors flex items-center gap-1.5 italic">
@@ -308,11 +308,11 @@ export default function MonitorDetails() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-12">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
         <div className="lg:col-span-2 space-y-10">
             
             {/* Quick Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
               <div className="bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/5 p-4 rounded-3xl shadow-sm hover:translate-y-[-2px] transition-all flex flex-col items-center justify-center relative overflow-hidden">
                  <div className="absolute top-3 right-3 flex items-center gap-1 opacity-40">
                     <ShieldCheck className="size-2 text-emerald-500" />
@@ -360,7 +360,7 @@ export default function MonitorDetails() {
             </div>
 
             {/* Main Latency Graph */}
-            <div className="bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/5 p-8 md:p-10 rounded-[40px] space-y-8 shadow-sm">
+            <div className="bg-panel dark:bg-panel/[0.01] border border-line dark:border-white/5 p-6 sm:p-10 rounded-[32px] sm:rounded-[40px] space-y-6 sm:space-y-8 shadow-sm">
                <div className="flex items-center justify-between border-b border-slate-50 dark:border-white/5 pb-6">
                   <div className="space-y-1">
                      <h3 className="text-[10px] font-bold text-ink  uppercase tracking-[0.3em] flex items-center gap-3 italic">

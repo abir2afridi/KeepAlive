@@ -11,7 +11,7 @@ export interface Monitor {
   method?: string;
   body?: string;
   headers?: string;
-  expected_status?: number;
+  expected_status?: number | number[];
   keep_alive?: boolean;
   last_is_up?: number;
   last_pinged_at?: string;

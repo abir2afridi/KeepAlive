@@ -7,6 +7,7 @@
   /* Theme-aware variables */
   --color-base: var(--bg-base);
   --color-panel: var(--bg-panel);
+  --color-sidebar: var(--bg-sidebar);
   --color-line: var(--border-subtle);
   --color-ink: var(--text-main);
 
@@ -52,20 +53,22 @@
 }
 
 :root {
-  /* LIGHT Theme - Clean High-Contrast */
+  /* LIGHT Theme */
   --primary: #5551FF; 
-  --bg-base: #f8f9fa; /* Warm premium ivory */
-  --bg-panel: #ffffff; /* Pure white for cards/panels */
-  --border-subtle: #edf2f7;
+  --bg-base: #f1eeea; /* Requested light background */
+  --bg-panel: #ffffff;
+  --bg-sidebar: #3a2571; /* Requested sidebar color */
+  --border-subtle: #e5e7eb;
   --text-main: #020617;
   --background-dark: #f8fafc; 
 }
 
 .dark {
-  /* DARK Theme - Deep Space */
-  --primary: #0df2f2;
+  /* DARK Theme */
+  --primary: #5551FF; /* Keep consistent with primary brand color */
   --bg-base: #050609;
   --bg-panel: #0d1117;
+  --bg-sidebar: #3a2571; /* Sidebar stays brand color as requested */
   --border-subtle: #1e293b;
   --text-main: #f8fafc;
   --background-dark: #050609;
@@ -94,17 +97,14 @@ body {
 
 @layer base {
   :root {
-    --background: 47 27% 94%;
-    /* #f3f1ea */
+    --background: 34 15% 95%; /* #f1eeea */
     --foreground: 224 71.4% 4.1%;
-    --sidebar-dashboard: 255 22% 52%;
-    /* #786aa1 */
+    --sidebar-dashboard: 256 51% 29%; /* #3a2571 */
     --card: 0 0% 100%;
     --card-foreground: 224 71.4% 4.1%;
     --popover: 0 0% 100%;
     --popover-foreground: 224 71.4% 4.1%;
-    --primary: 253 80% 18%;
-    /* Dark blue for primary matches sidebar theme */
+    --primary: 256 51% 29%; 
     --primary-foreground: 210 40% 98%;
     --secondary: 47 10% 90%;
     --secondary-foreground: 222.2 47.1% 11.2%;

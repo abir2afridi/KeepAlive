@@ -163,7 +163,7 @@ export default function Monitors() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-10">
+    <div className="max-w-7xl mx-auto space-y-8 sm:space-y-12">
       
       <div className="flex items-center justify-between pb-4 border-b border-line/40">
         <div className="flex items-center gap-3">
@@ -176,7 +176,7 @@ export default function Monitors() {
       </div>
 
       {/* Control Bar */}
-      <div className="flex flex-col md:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1 relative group">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
           <input 
@@ -195,8 +195,8 @@ export default function Monitors() {
         </button>
       </div>
 
-      {/* Registry Matrix */}
-      <div className="bg-panel border border-line/40 rounded-[32px] overflow-hidden shadow-sm">
+      {/* Registry Matrix - Table View for Desktop */}
+      <div className="hidden lg:block bg-panel border border-line/40 rounded-[32px] overflow-hidden shadow-sm">
         <div className="overflow-x-auto custom-scrollbar-minimal">
           <table className="w-full text-left border-collapse">
             <thead className="text-[11px] font-bold uppercase tracking-widest text-ink/60 border-b border-line/20 bg-panel/50">
@@ -292,6 +292,78 @@ export default function Monitors() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile/Tablet Card View */}
+      <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-4">
+        {filteredMonitors.map(monitor => (
+          <div 
+            key={monitor.id}
+            onClick={() => navigate(`/app/monitors/${monitor.id}`)}
+            className="bg-panel border border-line/40 rounded-3xl p-6 space-y-6 shadow-sm active:scale-[0.98] transition-all"
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className={cn(
+                  "size-12 rounded-2xl flex items-center justify-center border",
+                  getMonitorStatus(monitor) 
+                    ? "bg-emerald-500/5 text-emerald-500 border-emerald-500/10" 
+                    : "bg-rose-500/5 text-rose-500 border-rose-500/10"
+                )}>
+                  {getMonitorIcon(monitor.type)}
+                </div>
+                <div>
+                  <h3 className="font-bold text-ink uppercase italic">{monitor.name}</h3>
+                  <p className="text-[10px] font-medium text-slate-400 italic truncate max-w-[150px]">{monitor.url}</p>
+                </div>
+              </div>
+              <div className={cn(
+                "px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border italic",
+                getMonitorStatus(monitor) 
+                  ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-500 border-emerald-500/10" 
+                  : "bg-rose-500/5 text-rose-600 dark:text-rose-500 border-rose-500/10"
+              )}>
+                {getMonitorStatus(monitor) ? 'Live' : 'Outage'}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-line/10">
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold text-ink/40 uppercase tracking-widest italic block">Uptime</span>
+                <span className={cn("text-lg font-bold italic", (monitor.uptime_percent || 0) < 99 ? "text-rose-500" : "text-emerald-500")}>
+                  {monitor.uptime_percent?.toFixed(1)}%
+                </span>
+              </div>
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold text-ink/40 uppercase tracking-widest italic block">Latency</span>
+                <span className="text-lg font-bold text-ink italic">
+                  {monitor.last_response_time || '--'}<span className="text-[9px] ml-1 opacity-40">ms</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-4 border-t border-line/10">
+              <div className="w-24 h-4">
+                <Sparkline data={monitor.recent_pings?.slice(-15) || []} color={monitor.current_is_up === 1 ? "#10b981" : "#f43f5e"} />
+              </div>
+              <div className="flex items-center gap-2">
+                <Link 
+                  to={`/app/monitors/${monitor.id}/edit`} 
+                  onClick={(e) => e.stopPropagation()}
+                  className="p-2.5 rounded-xl bg-line/10 text-ink/60"
+                >
+                  <Edit2 className="size-3.5" />
+                </Link>
+                <button 
+                  onClick={(e) => handleDelete(e, monitor.id)}
+                  className="p-2.5 rounded-xl bg-line/10 text-ink/60"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Registry Footer */}

@@ -104,7 +104,7 @@ export default function Index() {
     <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto overflow-x-hidden relative z-10 custom-scrollbar">
       
 
-      <main className="p-8 pb-32 w-full space-y-12">
+      <main className="p-4 sm:p-8 pb-32 w-full space-y-8 sm:space-y-12">
         {/* Minimalist Hero Section */}
         <section className="space-y-6 pt-2">
           {/* Action Row */}
@@ -254,7 +254,7 @@ export default function Index() {
               animate={activeTab === 'map' ? { opacity: 1 } : { opacity: 0 }}
               className="space-y-12"
             >
-              <div className="h-[600px] rounded-2xl overflow-hidden border border-line/40 bg-panel/5 relative z-0">
+              <div className="h-[400px] md:h-[600px] rounded-2xl overflow-hidden border border-line/40 bg-panel/5 relative z-0">
                 <div className="absolute top-6 left-6 z-[1001] px-3 py-1.5 bg-base/80 backdrop-blur-md rounded-lg border border-line/40">
                   <span className="text-[9px] font-bold uppercase tracking-widest text-primary/60">Spatial Node Matrix</span>
                 </div>
